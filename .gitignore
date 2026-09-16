@@ -5,4 +5,6 @@ target/
 .project
 *.class
 *.log
+.env
+.env.docker
 .DS_Store
