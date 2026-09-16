@@ -73,6 +73,32 @@ Para borrar únicamente los datos locales de prueba, sin tocar Atlas:
 docker compose -f compose.local.yaml down --volumes
 ```
 
+## Preparar otro computador Windows
+
+Para probar la app en otro PC con Android por USB, el repositorio incluye un preparador. Instala Git, Docker Desktop y Android Studio mediante `winget`, descarga Flutter estable y abre Docker Desktop. No usa Atlas ni solicita las credenciales privadas de otra persona.
+
+1. Descarga o clona este repositorio y el repositorio `obd-mobile-app`, usando las ramas de trabajo acordadas.
+2. En PowerShell, dentro de `obd-platform`, ejecuta una sola vez:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\preparar-equipo-windows.ps1
+```
+
+3. Cuando Android Studio se abra por primera vez, conserva la instalación **Standard** para que instale el SDK de Android. Luego acepta las licencias con:
+
+```powershell
+C:\src\flutter\bin\flutter.bat doctor --android-licenses
+```
+
+4. Conecta el celular, activa **Depuración USB** y acepta la autorización que aparece en el teléfono.
+5. Ejecuta la prueba local indicando la ruta del proyecto móvil:
+
+```powershell
+.\scripts\iniciar-pruebas-locales.ps1 -MobilePath "D:\RUTA\obd-mobile-app"
+```
+
+El primer uso requiere aceptar los términos de Docker y Android, y algunos celulares necesitan el controlador USB del fabricante. Después de esa preparación, para cada prueba solo hace falta abrir Docker Desktop, conectar el celular y ejecutar `iniciar-pruebas-locales.ps1`.
+
 ## Contratos de login
 
 Se mantienen los contratos de auth que ya revisamos:
