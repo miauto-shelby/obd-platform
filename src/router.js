@@ -6,7 +6,7 @@ const {
   sendNoContent,
 } = require("./utils/http");
 
-function createRouter(authService) {
+function createRouter(authService, vehicleService) {
   return async function router(req, res) {
     const url = new URL(req.url, "http://localhost");
     console.log(`[HTTP] ${req.method} ${url.pathname}`);
@@ -29,7 +29,7 @@ function createRouter(authService) {
 
     if (req.method === "POST" && url.pathname === "/api/v1/auth/refresh") {
       const body = await readJsonBody(req);
-      sendJson(res, 200, authService.refresh(body));
+      sendJson(res, 200, await authService.refresh(body));
       return;
     }
 
@@ -43,7 +43,7 @@ function createRouter(authService) {
         );
       }
 
-      sendJson(res, 200, authService.logout(token));
+      sendJson(res, 200, await authService.logout(token));
       return;
     }
 
@@ -57,7 +57,28 @@ function createRouter(authService) {
         );
       }
 
-      sendJson(res, 200, authService.me(token));
+      sendJson(res, 200, await authService.me(token));
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/v1/vehicles") {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      const body = await readJsonBody(req);
+      sendJson(res, 201, await vehicleService.create(token, body));
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/v1/vehicles") {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      sendJson(res, 200, { items: await vehicleService.list(token) });
       return;
     }
 

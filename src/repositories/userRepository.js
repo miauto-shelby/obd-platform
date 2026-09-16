@@ -1,49 +1,57 @@
-const DEFAULT_USER = {
-  id: "c8d2f4c1-3f8e-4b72-9d4d-1d3c1d8a8e11",
-  firstName: "Juan",
-  lastName: "Fajardo",
-  email: "juan@gmail.com",
-  photoUrl: "https://lh3.googleusercontent.com/",
-};
-
 class UserRepository {
-  constructor() {
-    this.usersById = new Map();
-    this.usersByEmail = new Map();
+  constructor(database) {
+    this.collection = database.collection("users");
   }
 
-  getOrCreateDefaultUser() {
-    return this.save(DEFAULT_USER);
+  async ensureIndexes() {
+    await Promise.all([
+      this.collection.createIndex({ provider: 1, providerUserId: 1 }, { unique: true }),
+      this.collection.createIndex({ email: 1 }),
+    ]);
   }
 
-  findByEmail(email) {
-    if (!email) {
+  async findByGoogleIdentity(providerUserId) {
+    return this.toUser(
+      await this.collection.findOne({ provider: "google", providerUserId })
+    );
+  }
+
+  async findById(id) {
+    return this.toUser(await this.collection.findOne({ _id: id }));
+  }
+
+  async upsertGoogleUser(user) {
+    const now = new Date();
+    const document = await this.collection.findOneAndUpdate(
+      { provider: "google", providerUserId: user.providerUserId },
+      {
+        $set: {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: String(user.email).toLowerCase(),
+          photoUrl: user.photoUrl,
+          updatedAt: now,
+        },
+        $setOnInsert: {
+          _id: user.id,
+          provider: "google",
+          providerUserId: user.providerUserId,
+          createdAt: now,
+          disabled: false,
+        },
+      },
+      { upsert: true, returnDocument: "after", includeResultMetadata: false }
+    );
+    return this.toUser(document);
+  }
+
+  toUser(document) {
+    if (!document) {
       return null;
     }
 
-    const key = String(email).toLowerCase();
-    const userId = this.usersByEmail.get(key);
-    if (!userId) {
-      return null;
-    }
-
-    return this.usersById.get(userId) || null;
-  }
-
-  findById(id) {
-    return this.usersById.get(id) || null;
-  }
-
-  save(user) {
-    const stored = {
-      ...user,
-      email: String(user.email).toLowerCase(),
-    };
-
-    this.usersById.set(stored.id, stored);
-    this.usersByEmail.set(stored.email, stored.id);
-    return stored;
+    return { ...document, id: document._id };
   }
 }
 
-module.exports = { UserRepository, DEFAULT_USER };
+module.exports = { UserRepository };

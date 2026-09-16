@@ -3,15 +3,69 @@ const assert = require("node:assert/strict");
 
 const { config } = require("../src/config");
 const { createAuthService } = require("../src/services/authService");
-const { UserRepository } = require("../src/repositories/userRepository");
-const { SessionRepository } = require("../src/repositories/sessionRepository");
 const { ApiError } = require("../src/errors/apiError");
+
+class MemoryUserRepository {
+  constructor() {
+    this.users = new Map();
+  }
+
+  async upsertGoogleUser(user) {
+    const stored = this.users.get(user.providerUserId) || { ...user, disabled: false };
+    const next = { ...stored, ...user };
+    this.users.set(user.providerUserId, next);
+    return next;
+  }
+
+  async findById(id) {
+    return [...this.users.values()].find((user) => user.id === id) || null;
+  }
+}
+
+class MemorySessionRepository {
+  constructor() {
+    this.sessions = new Map();
+  }
+
+  async create(session) {
+    this.sessions.set(session.sessionId, { ...session });
+    return session;
+  }
+
+  async findById(sessionId) {
+    return this.sessions.get(sessionId) || null;
+  }
+
+  async rotate(update) {
+    const session = await this.findById(update.sessionId);
+    if (!session || session.revoked || session.currentRefreshJti !== update.currentRefreshJti) {
+      return null;
+    }
+    Object.assign(session, {
+      previousRefreshJti: update.currentRefreshJti,
+      currentRefreshJti: update.nextRefreshJti,
+      refreshTokenHash: update.refreshTokenHash,
+      accessJti: update.accessJti,
+      appVersion: update.appVersion,
+    });
+    return session;
+  }
+
+  async revoke(sessionId) {
+    const session = await this.findById(sessionId);
+    if (!session || session.revoked) {
+      return null;
+    }
+    session.revoked = true;
+    return session;
+  }
+}
 
 function createService(payload = defaultGooglePayload()) {
   return createAuthService({
     config,
-    userRepository: new UserRepository(),
-    sessionRepository: new SessionRepository(),
+    userRepository: new MemoryUserRepository(),
+    sessionRepository: new MemorySessionRepository(),
     googleTokenVerifier: {
       verifyIdToken: async () => ({
         getPayload: () => payload,
@@ -85,7 +139,7 @@ test("refresh rotates the refresh token", async () => {
     appVersion: "1.0.0",
   });
 
-  const refreshed = service.refresh({
+  const refreshed = await service.refresh({
     refreshToken: login.refreshToken,
     appVersion: "1.0.1",
   });
@@ -93,6 +147,15 @@ test("refresh rotates the refresh token", async () => {
   assert.ok(refreshed.accessToken);
   assert.ok(refreshed.refreshToken);
   assert.equal(refreshed.tokenType, "Bearer");
+
+  await assert.rejects(
+    () =>
+      service.refresh({
+        refreshToken: login.refreshToken,
+        appVersion: "1.0.1",
+      }),
+    (error) => error instanceof ApiError && error.code === "REFRESH_TOKEN_REUSED"
+  );
 });
 
 test("me returns the authenticated user", async () => {
@@ -105,7 +168,7 @@ test("me returns the authenticated user", async () => {
     appVersion: "1.0.0",
   });
 
-  const me = service.me(login.accessToken);
+  const me = await service.me(login.accessToken);
 
   assert.equal(me.firstName, "Juan");
   assert.equal(me.lastName, "Fajardo");
@@ -122,10 +185,10 @@ test("logout revokes the session", async () => {
     appVersion: "1.0.0",
   });
 
-  const result = service.logout(login.accessToken);
+  const result = await service.logout(login.accessToken);
   assert.equal(result.message, "Sesi\u00F3n cerrada correctamente.");
 
-  assert.throws(
+  await assert.rejects(
     () => service.me(login.accessToken),
     (error) => error instanceof ApiError && error.code === "INVALID_ACCESS_TOKEN"
   );

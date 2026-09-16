@@ -1,25 +1,48 @@
 class SessionRepository {
-  constructor() {
-    this.sessionsById = new Map();
+  constructor(database) {
+    this.collection = database.collection("sessions");
   }
 
-  create(session) {
-    this.sessionsById.set(session.sessionId, session);
+  async ensureIndexes() {
+    await Promise.all([
+      this.collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      this.collection.createIndex({ userId: 1, revoked: 1 }),
+    ]);
+  }
+
+  async create(session) {
+    await this.collection.insertOne({ ...session, _id: session.sessionId });
     return session;
   }
 
-  findById(sessionId) {
-    return this.sessionsById.get(sessionId) || null;
+  async findById(sessionId) {
+    return this.collection.findOne({ _id: sessionId });
   }
 
-  revoke(sessionId) {
-    const session = this.findById(sessionId);
-    if (!session) {
-      return null;
-    }
+  async rotate({ sessionId, currentRefreshJti, nextRefreshJti, refreshTokenHash, accessJti, appVersion }) {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: sessionId, revoked: false, currentRefreshJti },
+      {
+        $set: {
+          previousRefreshJti: currentRefreshJti,
+          currentRefreshJti: nextRefreshJti,
+          refreshTokenHash,
+          accessJti,
+          appVersion,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: "after", includeResultMetadata: false }
+    );
+    return result;
+  }
 
-    session.revoked = true;
-    return session;
+  async revoke(sessionId) {
+    return this.collection.findOneAndUpdate(
+      { _id: sessionId, revoked: false },
+      { $set: { revoked: true, revokedAt: new Date(), updatedAt: new Date() } },
+      { returnDocument: "after", includeResultMetadata: false }
+    );
   }
 }
 

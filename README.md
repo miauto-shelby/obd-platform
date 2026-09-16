@@ -4,9 +4,17 @@ Backend Node para la app móvil de OBD2.
 
 ## Run
 
+1. Copia `.env.example` como `.env` y configura `MONGODB_URI`, `MONGODB_DATABASE` y `JWT_SECRET`.
+2. Instala las dependencias y arranca el backend:
+
 ```bash
-node server.js
+npm install
+npm start
 ```
+
+El backend no inicia sin `MONGODB_URI`; así evitamos volver a operar con usuarios y sesiones efímeros por accidente.
+
+MongoDB guarda `users` y `sessions`. Las sesiones expiran automáticamente cuando vence el refresh token; solo se guarda el hash SHA-256 del refresh token, nunca el token completo.
 
 El servidor queda por defecto en:
 
@@ -20,6 +28,8 @@ http://localhost:8080
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
+- `POST /api/v1/vehicles`
+- `GET /api/v1/vehicles`
 - `GET /health`
 
 ## Prueba desde celular por USB

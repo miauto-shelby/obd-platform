@@ -68,9 +68,12 @@ function getBearerToken(req) {
 
 function handleError(res, error) {
   if (error instanceof ApiError) {
+    console.warn(`[HTTP] Expected error code=${error.code} status=${error.status}`);
     sendJson(res, error.status, { code: error.code, message: error.message });
     return;
   }
+
+  console.error(`[HTTP] Unexpected error type=${error?.name || "Error"}`);
 
   sendJson(res, 500, {
     code: "INTERNAL_ERROR",
