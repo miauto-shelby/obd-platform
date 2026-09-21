@@ -99,6 +99,28 @@ C:\src\flutter\bin\flutter.bat doctor --android-licenses
 
 El primer uso requiere aceptar los términos de Docker y Android, y algunos celulares necesitan el controlador USB del fabricante. Después de esa preparación, para cada prueba solo hace falta abrir Docker Desktop, conectar el celular y ejecutar `iniciar-pruebas-locales.ps1`.
 
+## Prueba local en iPhone desde un Mac
+
+La validación iPhone se prepara en la rama `feature/ios-local-validation`. Docker ejecuta el backend y MongoDB localmente. El iPhone se conecta al puerto `8081` usando la misma red Wi-Fi del Mac; iPhone no usa el redireccionamiento USB de Android.
+
+Antes de ejecutar la prueba, el Mac debe tener Docker Desktop, Flutter, Xcode y CocoaPods. La persona que prueba debe iniciar sesión en Xcode con la cuenta Apple del proyecto, confiar el iPhone y activar Developer Mode.
+
+1. Copia `.env.docker.example` como `.env.docker` en este repositorio.
+2. Conecta el iPhone al Mac, confía el equipo y comprueba que Flutter lo detecta con `flutter devices`.
+3. Ejecuta desde `obd-platform`:
+
+```bash
+bash scripts/iniciar-pruebas-ios-local.sh /ruta/a/obd-mobile-app
+```
+
+El script inicia Docker exponiendo el backend solo para la red local durante esa prueba, detecta la IP del Mac, comprueba `GET /health` y abre la app con la URL local correcta. Al terminar, detén Docker con:
+
+```bash
+docker compose -f compose.local.yaml down
+```
+
+La configuración de Google Sign-In para iPhone se realiza después en Google Cloud. Nunca copies URI de Atlas, contraseñas ni secretos al Mac de pruebas.
+
 ## Contratos de login
 
 Se mantienen los contratos de auth que ya revisamos:
