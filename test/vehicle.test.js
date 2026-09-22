@@ -22,7 +22,20 @@ class MemoryVehicleRepository {
     return this.vehicles.filter((vehicle) => vehicle.userId === userId).map((vehicle) => this.toVehicle(vehicle));
   }
 
+  async findByIdAndUserId(vehicleId, userId) {
+    return this.toVehicle(this.vehicles.find((vehicle) => vehicle.id === vehicleId && vehicle.userId === userId));
+  }
+
+  async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
+    const vehicle = this.vehicles.find((item) => item.id === vehicleId && item.userId === userId);
+    if (!vehicle) return null;
+    vehicle.vin = vin;
+    vehicle.updatedAt = updatedAt;
+    return this.toVehicle(vehicle);
+  }
+
   toVehicle(vehicle) {
+    if (!vehicle) return null;
     return {
       vehicleId: vehicle.id,
       nickname: vehicle.nickname,
@@ -93,5 +106,34 @@ test("validates required vehicle data", async () => {
   await assert.rejects(
     () => service.create("access-token", { ...validRequest(), currentMileage: -1 }),
     (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
+  );
+});
+
+test("gets and updates the VIN only for the vehicle owner", async () => {
+  const service = createService();
+  const vehicle = await service.create("access-token", validRequest());
+
+  assert.deepEqual(await service.get("access-token", vehicle.vehicleId), vehicle);
+
+  const updated = await service.updateVin("access-token", vehicle.vehicleId, {
+    vin: "1HGCM82633A004352",
+  });
+  assert.equal(updated.vin, "1HGCM82633A004352");
+
+  const cleared = await service.updateVin("access-token", vehicle.vehicleId, { vin: null });
+  assert.equal(cleared.vin, null);
+
+  await assert.rejects(
+    () => service.updateVin("access-token", vehicle.vehicleId, { vin: "NO-VALIDO" }),
+    (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
+  );
+
+  const otherUserService = new VehicleService({
+    authService: { getAuthenticatedUser: async () => ({ id: "other-user" }) },
+    vehicleRepository: service.vehicleRepository,
+  });
+  await assert.rejects(
+    () => otherUserService.get("access-token", vehicle.vehicleId),
+    (error) => error instanceof ApiError && error.code === "VEHICLE_NOT_FOUND" && error.status === 404
   );
 });

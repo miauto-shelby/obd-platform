@@ -24,6 +24,20 @@ class VehicleRepository {
     return documents.map((document) => this.toVehicle(document));
   }
 
+  async findByIdAndUserId(vehicleId, userId) {
+    const document = await this.collection.findOne({ _id: vehicleId, userId });
+    return this.toVehicle(document);
+  }
+
+  async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: vehicleId, userId },
+      { $set: { vin, updatedAt } },
+      { returnDocument: "after" }
+    );
+    return this.toVehicle(result);
+  }
+
   toVehicle(document) {
     if (!document) {
       return null;

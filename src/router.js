@@ -82,6 +82,29 @@ function createRouter(authService, vehicleService) {
       return;
     }
 
+    const vehicleDetail = url.pathname.match(/^\/api\/v1\/vehicles\/([^/]+)$/);
+    if (req.method === "GET" && vehicleDetail) {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      sendJson(res, 200, await vehicleService.get(token, vehicleDetail[1]));
+      return;
+    }
+
+    const vehicleVin = url.pathname.match(/^\/api\/v1\/vehicles\/([^/]+)\/vin$/);
+    if (req.method === "PATCH" && vehicleVin) {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      const body = await readJsonBody(req);
+      sendJson(res, 200, await vehicleService.updateVin(token, vehicleVin[1], body));
+      return;
+    }
+
     throw new ApiError("NOT_FOUND", "Ruta no encontrada.", 404);
   };
 }

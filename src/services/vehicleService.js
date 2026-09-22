@@ -36,6 +36,33 @@ class VehicleService {
     return this.vehicleRepository.listByUserId(user.id);
   }
 
+  async get(accessToken, vehicleId) {
+    const user = await this.authService.getAuthenticatedUser(accessToken);
+    return this.findOwnedVehicle(vehicleId, user.id);
+  }
+
+  async updateVin(accessToken, vehicleId, request) {
+    const user = await this.authService.getAuthenticatedUser(accessToken);
+    await this.findOwnedVehicle(vehicleId, user.id);
+    return this.vehicleRepository.updateVinByIdAndUserId(
+      vehicleId,
+      user.id,
+      this.optionalVin(request?.vin),
+      new Date()
+    );
+  }
+
+  async findOwnedVehicle(vehicleId, userId) {
+    if (!vehicleId || typeof vehicleId !== "string") {
+      throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
+    }
+    const vehicle = await this.vehicleRepository.findByIdAndUserId(vehicleId, userId);
+    if (!vehicle) {
+      throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
+    }
+    return vehicle;
+  }
+
   normalizeCreateRequest(request) {
     const plate = String(request?.plate || "").trim().toUpperCase();
     const brand = String(request?.brand || "").trim();
