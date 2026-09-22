@@ -38,6 +38,15 @@ class VehicleRepository {
     return this.toVehicle(result);
   }
 
+  async updateProfileByIdAndUserId(vehicleId, userId, changes, updatedAt) {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: vehicleId, userId },
+      { $set: { ...changes, updatedAt } },
+      { returnDocument: "after" }
+    );
+    return this.toVehicle(result);
+  }
+
   toVehicle(document) {
     if (!document) {
       return null;

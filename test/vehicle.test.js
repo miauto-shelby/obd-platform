@@ -34,6 +34,13 @@ class MemoryVehicleRepository {
     return this.toVehicle(vehicle);
   }
 
+  async updateProfileByIdAndUserId(vehicleId, userId, changes, updatedAt) {
+    const vehicle = this.vehicles.find((item) => item.id === vehicleId && item.userId === userId);
+    if (!vehicle) return null;
+    Object.assign(vehicle, changes, { updatedAt });
+    return this.toVehicle(vehicle);
+  }
+
   toVehicle(vehicle) {
     if (!vehicle) return null;
     return {
@@ -60,7 +67,7 @@ function createService(userId = "user-1") {
 }
 
 function validRequest() {
-  return { plate: "abc 123", brand: "Chevrolet", model: "Onix", year: 2022, currentMileage: 48500 };
+  return { plate: "abc 123", brand: "Chevrolet", model: "Onix", year: 2022 };
 }
 
 test("creates and lists vehicles only for the authenticated user", async () => {
@@ -68,7 +75,7 @@ test("creates and lists vehicles only for the authenticated user", async () => {
   const vehicle = await service.create("access-token", validRequest());
 
   assert.equal(vehicle.plate, "ABC 123");
-  assert.equal(vehicle.currentMileage, 48500);
+  assert.equal(vehicle.currentMileage, null);
   assert.equal(vehicle.nickname, null);
   assert.equal(vehicle.vin, null);
   assert.deepEqual(await service.list("access-token"), [vehicle]);
@@ -104,7 +111,33 @@ test("stores optional vehicle data when it is provided", async () => {
 test("validates required vehicle data", async () => {
   const service = createService();
   await assert.rejects(
-    () => service.create("access-token", { ...validRequest(), currentMileage: -1 }),
+    () => service.create("access-token", { ...validRequest(), brand: "" }),
+    (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
+  );
+  await assert.rejects(
+    () => service.create("access-token", { ...validRequest(), currentMileage: 48500 }),
+    (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
+  );
+});
+
+test("updates the basic profile without accepting manual mileage", async () => {
+  const service = createService();
+  const vehicle = await service.create("access-token", validRequest());
+
+  const updated = await service.updateProfile("access-token", vehicle.vehicleId, {
+    nickname: "Auto familiar",
+    engine: "1.0 Turbo",
+    fuelType: "gasoline",
+    transmission: null,
+  });
+  assert.equal(updated.nickname, "Auto familiar");
+  assert.equal(updated.engine, "1.0 Turbo");
+  assert.equal(updated.fuelType, "GASOLINE");
+  assert.equal(updated.transmission, null);
+  assert.equal(updated.currentMileage, null);
+
+  await assert.rejects(
+    () => service.updateProfile("access-token", vehicle.vehicleId, { currentMileage: 50000 }),
     (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
   );
 });

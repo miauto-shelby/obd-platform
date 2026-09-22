@@ -82,9 +82,9 @@ test("MongoDB persists, rotates, and revokes auth sessions", async () => {
       brand: "Chevrolet",
       model: "Onix",
       year: 2022,
-      currentMileage: 48500,
     });
     assert.equal(vehicle.plate, "ABC123");
+    assert.equal(vehicle.currentMileage, null);
     assert.equal(await database.collection("vehicles").countDocuments(), 1);
 
     await client.close();
@@ -98,7 +98,7 @@ test("MongoDB persists, rotates, and revokes auth sessions", async () => {
     assert.equal(meBeforeRefresh.firstName, "Integration");
     const vehicles = await restartedServices.vehicleService.list(login.accessToken);
     assert.equal(vehicles.length, 1);
-    assert.equal(vehicles[0].currentMileage, 48500);
+    assert.equal(vehicles[0].currentMileage, null);
 
     const refreshed = await restartedServices.authService.refresh({
       refreshToken: login.refreshToken,

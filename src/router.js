@@ -93,6 +93,17 @@ function createRouter(authService, vehicleService) {
       return;
     }
 
+    if (req.method === "PATCH" && vehicleDetail) {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      const body = await readJsonBody(req);
+      sendJson(res, 200, await vehicleService.updateProfile(token, vehicleDetail[1], body));
+      return;
+    }
+
     const vehicleVin = url.pathname.match(/^\/api\/v1\/vehicles\/([^/]+)\/vin$/);
     if (req.method === "PATCH" && vehicleVin) {
       const token = getBearerToken(req);
