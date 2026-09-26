@@ -107,3 +107,24 @@ Se mantienen los contratos de auth que ya revisamos:
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
+
+## Token temporal para pruebas con Postman
+
+Las rutas de vehículos requieren una sesión válida. Para validar esas rutas sin exponer un token de la aplicación, cada desarrollador puede generar una sesión local de una hora. El comando no abre un endpoint nuevo, no sube secretos al repositorio y muestra el token únicamente en la consola local.
+
+1. Inicia sesión una vez en la app con el correo de pruebas. Esto crea ese usuario en la base de datos configurada en `.env`.
+2. Agrega temporalmente esta línea a tu `.env` local, sin subirla a Git:
+
+```text
+POSTMAN_TEST_MODE=true
+```
+
+3. Desde la carpeta del backend ejecuta, reemplazando el correo por el tuyo:
+
+```powershell
+npm run postman:token -- tu-correo@ejemplo.com
+```
+
+4. Copia el valor completo que muestra la consola y pégalo en la variable `accessToken` de la colección de Postman. No compartas, guardes en capturas ni subas ese valor: vence en una hora.
+
+Si el correo todavía no existe, el comando se detiene sin crear nada y te indica iniciar sesión primero en la app.

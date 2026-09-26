@@ -20,6 +20,12 @@ class UserRepository {
     return this.toUser(await this.collection.findOne({ _id: id }));
   }
 
+  async findByEmail(email) {
+    return this.toUser(
+      await this.collection.findOne({ email: String(email).trim().toLowerCase() })
+    );
+  }
+
   async upsertGoogleUser(user) {
     const now = new Date();
     const document = await this.collection.findOneAndUpdate(
