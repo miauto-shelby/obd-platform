@@ -9,7 +9,7 @@ class MemoryVehicleRepository {
   }
 
   async create(vehicle) {
-    if (this.vehicles.some((item) => item.userId === vehicle.userId && item.plateNormalized === vehicle.plateNormalized)) {
+    if (this.vehicles.some((item) => item.plateNormalized === vehicle.plateNormalized)) {
       const error = new Error("duplicate key");
       error.code = 11000;
       throw error;
@@ -26,6 +26,10 @@ class MemoryVehicleRepository {
     return this.toVehicle(this.vehicles.find((vehicle) => vehicle.id === vehicleId && vehicle.userId === userId));
   }
 
+  async findById(vehicleId) {
+    return this.toVehicle(this.vehicles.find((vehicle) => vehicle.id === vehicleId));
+  }
+
   async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
     const vehicle = this.vehicles.find((item) => item.id === vehicleId && item.userId === userId);
     if (!vehicle) return null;
@@ -38,6 +42,21 @@ class MemoryVehicleRepository {
     const vehicle = this.vehicles.find((item) => item.id === vehicleId && item.userId === userId);
     if (!vehicle) return null;
     Object.assign(vehicle, changes, { updatedAt });
+    return this.toVehicle(vehicle);
+  }
+
+  async updatePlateById(vehicleId, plate, plateNormalized, auditEntry, updatedAt) {
+    const vehicle = this.vehicles.find((item) => item.id === vehicleId);
+    if (!vehicle) return null;
+    if (this.vehicles.some((item) => item.id !== vehicleId && item.plateNormalized === plateNormalized)) {
+      const error = new Error("duplicate key");
+      error.code = 11000;
+      throw error;
+    }
+    vehicle.plate = plate;
+    vehicle.plateNormalized = plateNormalized;
+    vehicle.plateChangeHistory = [...(vehicle.plateChangeHistory || []), auditEntry];
+    vehicle.updatedAt = updatedAt;
     return this.toVehicle(vehicle);
   }
 
@@ -59,10 +78,10 @@ class MemoryVehicleRepository {
   }
 }
 
-function createService(userId = "user-1") {
+function createService(userId = "user-1", email = "user@example.com", vehicleRepository) {
   return new VehicleService({
-    authService: { getAuthenticatedUser: async () => ({ id: userId }) },
-    vehicleRepository: new MemoryVehicleRepository(),
+    authService: { getAuthenticatedUser: async () => ({ id: userId, email }) },
+    vehicleRepository: vehicleRepository || new MemoryVehicleRepository(),
   });
 }
 
@@ -81,13 +100,63 @@ test("creates and lists vehicles only for the authenticated user", async () => {
   assert.deepEqual(await service.list("access-token"), [vehicle]);
 });
 
-test("rejects duplicate plates for the same user", async () => {
+test("rejects duplicate plates anywhere in the platform", async () => {
   const service = createService();
   await service.create("access-token", validRequest());
 
+  const anotherUserService = createService(
+    "user-2",
+    "other@example.com",
+    service.vehicleRepository
+  );
+
   await assert.rejects(
-    () => service.create("access-token", validRequest()),
+    () => anotherUserService.create("access-token", validRequest()),
     (error) => error instanceof ApiError && error.code === "VEHICLE_ALREADY_EXISTS" && error.status === 409
+  );
+});
+
+test("allows only administrators to correct a plate and keeps an internal audit", async () => {
+  const ownerService = createService();
+  const vehicle = await ownerService.create("access-token", validRequest());
+
+  const nonAdminService = createService(
+    "user-2",
+    "user-2@example.com",
+    ownerService.vehicleRepository
+  );
+  await assert.rejects(
+    () =>
+      nonAdminService.updatePlateAsAdmin("access-token", vehicle.vehicleId, {
+        plate: "XYZ789",
+        reason: "Error de digitación.",
+      }),
+    (error) => error instanceof ApiError && error.code === "ADMIN_ACCESS_REQUIRED" && error.status === 403
+  );
+
+  const adminService = new VehicleService({
+    authService: { getAuthenticatedUser: async () => ({ id: "admin-1", email: "admin@example.com" }) },
+    vehicleRepository: ownerService.vehicleRepository,
+    adminEmails: ["admin@example.com"],
+  });
+  const updated = await adminService.updatePlateAsAdmin("access-token", vehicle.vehicleId, {
+    plate: "xyz 789",
+    reason: "Error de digitación registrado durante la creación.",
+  });
+
+  assert.equal(updated.plate, "XYZ 789");
+  const storedVehicle = ownerService.vehicleRepository.vehicles[0];
+  assert.equal(storedVehicle.plateChangeHistory.length, 1);
+  assert.equal(storedVehicle.plateChangeHistory[0].previousPlate, "ABC 123");
+  assert.equal(storedVehicle.plateChangeHistory[0].newPlate, "XYZ 789");
+
+  await assert.rejects(
+    () =>
+      adminService.updatePlateAsAdmin("access-token", vehicle.vehicleId, {
+        plate: "XYZ789",
+        reason: "No debe permitir la misma placa.",
+      }),
+    (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
   );
 });
 

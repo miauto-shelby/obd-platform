@@ -4,10 +4,37 @@ class VehicleRepository {
   }
 
   async ensureIndexes() {
+    const duplicatePlate = await this.collection
+      .aggregate([
+        {
+          $group: {
+            _id: "$plateNormalized",
+            vehicleIds: { $push: "$_id" },
+            count: { $sum: 1 },
+          },
+        },
+        { $match: { _id: { $ne: null }, count: { $gt: 1 } } },
+        { $limit: 1 },
+      ])
+      .next();
+
+    if (duplicatePlate) {
+      throw new Error(
+        `Cannot enforce globally unique plates until duplicate vehicles are reviewed: ${duplicatePlate.vehicleIds.join(", ")}`
+      );
+    }
+
     await this.collection.createIndex(
-      { userId: 1, plateNormalized: 1 },
-      { unique: true }
+      { plateNormalized: 1 },
+      { unique: true, name: "plateNormalized_unique" }
     );
+    try {
+      await this.collection.dropIndex("userId_1_plateNormalized_1");
+    } catch (error) {
+      if (error.codeName !== "IndexNotFound") {
+        throw error;
+      }
+    }
     await this.collection.createIndex({ userId: 1, updatedAt: -1 });
   }
 
@@ -29,6 +56,10 @@ class VehicleRepository {
     return this.toVehicle(document);
   }
 
+  async findById(vehicleId) {
+    return this.toVehicle(await this.collection.findOne({ _id: vehicleId }));
+  }
+
   async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
     const result = await this.collection.findOneAndUpdate(
       { _id: vehicleId, userId },
@@ -42,6 +73,18 @@ class VehicleRepository {
     const result = await this.collection.findOneAndUpdate(
       { _id: vehicleId, userId },
       { $set: { ...changes, updatedAt } },
+      { returnDocument: "after" }
+    );
+    return this.toVehicle(result);
+  }
+
+  async updatePlateById(vehicleId, plate, plateNormalized, auditEntry, updatedAt) {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: vehicleId },
+      {
+        $set: { plate, plateNormalized, updatedAt },
+        $push: { plateChangeHistory: auditEntry },
+      },
       { returnDocument: "after" }
     );
     return this.toVehicle(result);

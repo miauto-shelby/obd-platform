@@ -30,7 +30,38 @@ http://localhost:8080
 - `GET /api/v1/auth/me`
 - `POST /api/v1/vehicles`
 - `GET /api/v1/vehicles`
+- `PATCH /api/v1/admin/vehicles/:vehicleId/plate` (administrador; corrección auditada)
 - `GET /health`
+
+## Corrección administrativa de placa
+
+La placa es única en toda la plataforma y los usuarios normales no pueden modificarla. Cuando una persona registra una placa por error, solo un administrador puede corregirla.
+
+1. En el `.env` local del backend, define los correos autorizados, separados por coma:
+
+```text
+ADMIN_EMAILS=admin@ejemplo.com,otro-admin@ejemplo.com
+```
+
+2. El administrador debe iniciar sesión normalmente y usar un access token válido.
+3. Enviar `PATCH /api/v1/admin/vehicles/{vehicleId}/plate` con este cuerpo:
+
+```json
+{
+  "plate": "ABC123",
+  "reason": "Corrección de error de digitación informado por el usuario."
+}
+```
+
+La corrección deja un registro interno con la placa anterior, nueva placa, motivo, fecha y administrador responsable. Una placa ya registrada genera `409`; un usuario que no sea administrador recibe `403`.
+
+Al iniciar, el backend verifica que no existan placas duplicadas antes de activar la regla global. Si encuentra una duplicidad antigua, se detiene sin borrar ni modificar datos y muestra los identificadores que debe revisar un administrador.
+
+Para generar un token temporal de administrador dentro del entorno Docker local, agrega también `POSTMAN_TEST_MODE=true` y el correo en `ADMIN_EMAILS` al archivo `.env.docker`, luego ejecuta:
+
+```powershell
+docker compose -f compose.local.yaml exec api node scripts/create-postman-test-token.js admin@ejemplo.com
+```
 
 ## Prueba desde celular por USB
 

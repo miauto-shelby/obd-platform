@@ -116,6 +116,24 @@ function createRouter(authService, vehicleService) {
       return;
     }
 
+    const adminVehiclePlate = url.pathname.match(
+      /^\/api\/v1\/admin\/vehicles\/([^/]+)\/plate$/
+    );
+    if (req.method === "PATCH" && adminVehiclePlate) {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      const body = await readJsonBody(req);
+      sendJson(
+        res,
+        200,
+        await vehicleService.updatePlateAsAdmin(token, adminVehiclePlate[1], body)
+      );
+      return;
+    }
+
     throw new ApiError("NOT_FOUND", "Ruta no encontrada.", 404);
   };
 }

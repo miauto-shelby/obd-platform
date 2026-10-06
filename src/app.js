@@ -23,6 +23,7 @@ async function createApp() {
   const vehicleService = new VehicleService({
     authService,
     vehicleRepository: new VehicleRepository(mongo.database),
+    adminEmails: config.adminEmails,
   });
   await Promise.all([
     authService.userRepository.ensureIndexes(),

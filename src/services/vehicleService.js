@@ -2,9 +2,10 @@ const crypto = require("crypto");
 const { ApiError } = require("../errors/apiError");
 
 class VehicleService {
-  constructor({ authService, vehicleRepository }) {
+  constructor({ authService, vehicleRepository, adminEmails = [] }) {
     this.authService = authService;
     this.vehicleRepository = vehicleRepository;
+    this.adminEmails = new Set(adminEmails.map((email) => String(email).toLowerCase()));
   }
 
   async create(accessToken, request) {
@@ -30,7 +31,7 @@ class VehicleService {
       if (error && error.code === 11000) {
         throw new ApiError(
           "VEHICLE_ALREADY_EXISTS",
-          "Ya existe un vehículo con esa placa en tu cuenta.",
+          "Ya existe un vehículo registrado con esa placa.",
           409
         );
       }
@@ -71,6 +72,44 @@ class VehicleService {
     );
   }
 
+  async updatePlateAsAdmin(accessToken, vehicleId, request) {
+    const admin = await this.authService.getAuthenticatedUser(accessToken);
+    this.ensureAdministrator(admin);
+
+    const vehicle = await this.findVehicle(vehicleId);
+    const { plate, plateNormalized, reason } = this.normalizeAdminPlateUpdateRequest(
+      request,
+      this.normalizePlate(vehicle.plate).plateNormalized
+    );
+    const changedAt = new Date();
+
+    try {
+      return await this.vehicleRepository.updatePlateById(
+        vehicleId,
+        plate,
+        plateNormalized,
+        {
+          previousPlate: vehicle.plate,
+          newPlate: plate,
+          reason,
+          changedAt,
+          changedByUserId: admin.id,
+          changedByEmail: admin.email,
+        },
+        changedAt
+      );
+    } catch (error) {
+      if (error && error.code === 11000) {
+        throw new ApiError(
+          "VEHICLE_ALREADY_EXISTS",
+          "Ya existe un vehículo registrado con esa placa.",
+          409
+        );
+      }
+      throw error;
+    }
+  }
+
   async findOwnedVehicle(vehicleId, userId) {
     if (!vehicleId || typeof vehicleId !== "string") {
       throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
@@ -82,16 +121,24 @@ class VehicleService {
     return vehicle;
   }
 
+  async findVehicle(vehicleId) {
+    if (!vehicleId || typeof vehicleId !== "string") {
+      throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
+    }
+    const vehicle = await this.vehicleRepository.findById(vehicleId);
+    if (!vehicle) {
+      throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
+    }
+    return vehicle;
+  }
+
   normalizeCreateRequest(request) {
-    const plate = String(request?.plate || "").trim().toUpperCase();
+    const { plate, plateNormalized } = this.normalizePlate(request?.plate);
     const brand = String(request?.brand || "").trim();
     const model = String(request?.model || "").trim();
     const year = Number(request?.year);
     const currentYear = new Date().getUTCFullYear();
 
-    if (!plate || plate.length > 12 || !/^[A-Z0-9 -]+$/.test(plate)) {
-      throw new ApiError("VALIDATION_ERROR", "La placa no es válida.", 400);
-    }
     if (!brand || brand.length > 60 || !model || model.length > 80) {
       throw new ApiError(
         "VALIDATION_ERROR",
@@ -104,7 +151,7 @@ class VehicleService {
     }
     return {
       plate,
-      plateNormalized: plate.replace(/[^A-Z0-9]/g, ""),
+      plateNormalized,
       brand,
       model,
       year,
@@ -180,6 +227,53 @@ class VehicleService {
       throw new ApiError("VALIDATION_ERROR", "El VIN no es válido.", 400);
     }
     return vin;
+  }
+
+  normalizePlate(value) {
+    const plate = String(value || "").trim().toUpperCase();
+    if (!plate || plate.length > 12 || !/^[A-Z0-9 -]+$/.test(plate)) {
+      throw new ApiError("VALIDATION_ERROR", "La placa no es válida.", 400);
+    }
+    return { plate, plateNormalized: plate.replace(/[^A-Z0-9]/g, "") };
+  }
+
+  normalizeAdminPlateUpdateRequest(request, currentPlateNormalized) {
+    if (!request || typeof request !== "object" || Array.isArray(request)) {
+      throw new ApiError("VALIDATION_ERROR", "Los datos de la placa no son válidos.", 400);
+    }
+    const suppliedFields = Object.keys(request);
+    if (
+      suppliedFields.length !== 2 ||
+      !Object.hasOwn(request, "plate") ||
+      !Object.hasOwn(request, "reason")
+    ) {
+      throw new ApiError(
+        "VALIDATION_ERROR",
+        "Solo se permiten los campos plate y reason para corregir una placa.",
+        400
+      );
+    }
+    const { plate, plateNormalized } = this.normalizePlate(request.plate);
+    if (plateNormalized === currentPlateNormalized) {
+      throw new ApiError("VALIDATION_ERROR", "La nueva placa debe ser diferente.", 400);
+    }
+    const reason = this.requiredText(
+      request.reason,
+      300,
+      "El motivo de la corrección es obligatorio."
+    );
+    return { plate, plateNormalized, reason };
+  }
+
+  ensureAdministrator(user) {
+    const email = String(user?.email || "").trim().toLowerCase();
+    if (!email || !this.adminEmails.has(email)) {
+      throw new ApiError(
+        "ADMIN_ACCESS_REQUIRED",
+        "Solo un administrador puede corregir la placa.",
+        403
+      );
+    }
   }
 }
 
