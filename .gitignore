@@ -1,0 +1,10 @@
+node_modules/
+target/
+.mvn/
+.classpath
+.project
+*.class
+*.log
+.env
+.env.docker
+.DS_Store

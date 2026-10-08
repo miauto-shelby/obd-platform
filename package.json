@@ -1,0 +1,19 @@
+{
+  "name": "obd2-platform-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend Node para OBD Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/auth.test.js test/vehicle.test.js",
+    "test:integration": "node --test test/mongoAuth.integration.test.js",
+    "postman:token": "node scripts/create-postman-test-token.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "google-auth-library": "^10.9.1",
+    "mongodb": "^7.6.0"
+  }
+}
