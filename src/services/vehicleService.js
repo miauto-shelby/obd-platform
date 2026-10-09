@@ -2,10 +2,9 @@ const crypto = require("crypto");
 const { ApiError } = require("../errors/apiError");
 
 class VehicleService {
-  constructor({ authService, vehicleRepository, adminEmails = [] }) {
+  constructor({ authService, vehicleRepository }) {
     this.authService = authService;
     this.vehicleRepository = vehicleRepository;
-    this.adminEmails = new Set(adminEmails.map((email) => String(email).toLowerCase()));
   }
 
   async create(accessToken, request) {
@@ -266,8 +265,8 @@ class VehicleService {
   }
 
   ensureAdministrator(user) {
-    const email = String(user?.email || "").trim().toLowerCase();
-    if (!email || !this.adminEmails.has(email)) {
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    if (!roles.map((role) => String(role).toUpperCase()).includes("ADMIN")) {
       throw new ApiError(
         "ADMIN_ACCESS_REQUIRED",
         "Solo un administrador puede corregir la placa.",

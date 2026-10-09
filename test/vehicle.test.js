@@ -78,9 +78,9 @@ class MemoryVehicleRepository {
   }
 }
 
-function createService(userId = "user-1", email = "user@example.com", vehicleRepository) {
+function createService(userId = "user-1", email = "user@example.com", vehicleRepository, roles = ["USER"]) {
   return new VehicleService({
-    authService: { getAuthenticatedUser: async () => ({ id: userId, email }) },
+    authService: { getAuthenticatedUser: async () => ({ id: userId, email, roles }) },
     vehicleRepository: vehicleRepository || new MemoryVehicleRepository(),
   });
 }
@@ -135,9 +135,14 @@ test("allows only administrators to correct a plate and keeps an internal audit"
   );
 
   const adminService = new VehicleService({
-    authService: { getAuthenticatedUser: async () => ({ id: "admin-1", email: "admin@example.com" }) },
+    authService: {
+      getAuthenticatedUser: async () => ({
+        id: "admin-1",
+        email: "admin@example.com",
+        roles: ["USER", "ADMIN"],
+      }),
+    },
     vehicleRepository: ownerService.vehicleRepository,
-    adminEmails: ["admin@example.com"],
   });
   const updated = await adminService.updatePlateAsAdmin("access-token", vehicle.vehicleId, {
     plate: "xyz 789",

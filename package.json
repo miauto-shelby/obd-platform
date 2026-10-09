@@ -7,9 +7,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test test/auth.test.js test/vehicle.test.js",
+    "test": "node --test test/auth.test.js test/vehicle.test.js test/userRoles.test.js",
     "test:integration": "node --test test/mongoAuth.integration.test.js",
-    "postman:token": "node scripts/create-postman-test-token.js"
+    "postman:token": "node scripts/create-postman-test-token.js",
+    "admin:grant-role": "node scripts/grant-user-role.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
