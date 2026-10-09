@@ -110,6 +110,28 @@ class VehicleService {
     }
   }
 
+  async deactivate(accessToken, vehicleId) {
+    const user = await this.authService.getAuthenticatedUser(accessToken);
+    const vehicle = await this.findOwnedVehicle(vehicleId, user.id);
+    if (vehicle.obdSessionActive) {
+      throw new ApiError(
+        "OBD_SESSION_ACTIVE",
+        "No es posible desactivar el vehículo mientras tenga una sesión OBD2 activa.",
+        409
+      );
+    }
+
+    const deactivated = await this.vehicleRepository.deactivateByIdAndUserId(
+      vehicleId,
+      user.id,
+      new Date()
+    );
+    if (!deactivated) {
+      throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
+    }
+    return deactivated;
+  }
+
   async findOwnedVehicle(vehicleId, userId) {
     if (!vehicleId || typeof vehicleId !== "string") {
       throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
@@ -156,6 +178,8 @@ class VehicleService {
       model,
       year,
       currentMileage: null,
+      status: "ACTIVE",
+      obdSessionActive: false,
       nickname: this.optionalText(request?.nickname, 60),
       vin: this.optionalVin(request?.vin),
       engine: this.optionalText(request?.engine, 40),

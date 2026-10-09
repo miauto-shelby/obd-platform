@@ -104,6 +104,17 @@ function createRouter(authService, vehicleService) {
       return;
     }
 
+    if (req.method === "DELETE" && vehicleDetail) {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      await vehicleService.deactivate(token, vehicleDetail[1]);
+      sendNoContent(res);
+      return;
+    }
+
     const vehicleVin = url.pathname.match(/^\/api\/v1\/vehicles\/([^/]+)\/vin$/);
     if (req.method === "PATCH" && vehicleVin) {
       const token = getBearerToken(req);

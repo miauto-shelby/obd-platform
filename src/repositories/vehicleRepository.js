@@ -45,14 +45,18 @@ class VehicleRepository {
 
   async listByUserId(userId) {
     const documents = await this.collection
-      .find({ userId })
+      .find({ userId, status: { $ne: "INACTIVE" } })
       .sort({ updatedAt: -1, createdAt: -1 })
       .toArray();
     return documents.map((document) => this.toVehicle(document));
   }
 
   async findByIdAndUserId(vehicleId, userId) {
-    const document = await this.collection.findOne({ _id: vehicleId, userId });
+    const document = await this.collection.findOne({
+      _id: vehicleId,
+      userId,
+      status: { $ne: "INACTIVE" },
+    });
     return this.toVehicle(document);
   }
 
@@ -62,7 +66,7 @@ class VehicleRepository {
 
   async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
     const result = await this.collection.findOneAndUpdate(
-      { _id: vehicleId, userId },
+      { _id: vehicleId, userId, status: { $ne: "INACTIVE" } },
       { $set: { vin, updatedAt } },
       { returnDocument: "after" }
     );
@@ -71,7 +75,7 @@ class VehicleRepository {
 
   async updateProfileByIdAndUserId(vehicleId, userId, changes, updatedAt) {
     const result = await this.collection.findOneAndUpdate(
-      { _id: vehicleId, userId },
+      { _id: vehicleId, userId, status: { $ne: "INACTIVE" } },
       { $set: { ...changes, updatedAt } },
       { returnDocument: "after" }
     );
@@ -84,6 +88,22 @@ class VehicleRepository {
       {
         $set: { plate, plateNormalized, updatedAt },
         $push: { plateChangeHistory: auditEntry },
+      },
+      { returnDocument: "after" }
+    );
+    return this.toVehicle(result);
+  }
+
+  async deactivateByIdAndUserId(vehicleId, userId, deactivatedAt) {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: vehicleId, userId, status: { $ne: "INACTIVE" } },
+      {
+        $set: {
+          status: "INACTIVE",
+          deactivatedAt,
+          deactivatedByUserId: userId,
+          updatedAt: deactivatedAt,
+        },
       },
       { returnDocument: "after" }
     );
@@ -107,6 +127,8 @@ class VehicleRepository {
       fuelType: document.fuelType,
       transmission: document.transmission,
       currentMileage: document.currentMileage,
+      obdSessionActive: document.obdSessionActive === true,
+      status: document.status || "ACTIVE",
       createdAt: document.createdAt,
       updatedAt: document.updatedAt,
     };

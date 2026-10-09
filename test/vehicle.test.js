@@ -19,11 +19,20 @@ class MemoryVehicleRepository {
   }
 
   async listByUserId(userId) {
-    return this.vehicles.filter((vehicle) => vehicle.userId === userId).map((vehicle) => this.toVehicle(vehicle));
+    return this.vehicles
+      .filter((vehicle) => vehicle.userId === userId && vehicle.status !== "INACTIVE")
+      .map((vehicle) => this.toVehicle(vehicle));
   }
 
   async findByIdAndUserId(vehicleId, userId) {
-    return this.toVehicle(this.vehicles.find((vehicle) => vehicle.id === vehicleId && vehicle.userId === userId));
+    return this.toVehicle(
+      this.vehicles.find(
+        (vehicle) =>
+          vehicle.id === vehicleId &&
+          vehicle.userId === userId &&
+          vehicle.status !== "INACTIVE"
+      )
+    );
   }
 
   async findById(vehicleId) {
@@ -60,6 +69,21 @@ class MemoryVehicleRepository {
     return this.toVehicle(vehicle);
   }
 
+  async deactivateByIdAndUserId(vehicleId, userId, deactivatedAt) {
+    const vehicle = this.vehicles.find(
+      (item) =>
+        item.id === vehicleId &&
+        item.userId === userId &&
+        item.status !== "INACTIVE"
+    );
+    if (!vehicle) return null;
+    vehicle.status = "INACTIVE";
+    vehicle.deactivatedAt = deactivatedAt;
+    vehicle.deactivatedByUserId = userId;
+    vehicle.updatedAt = deactivatedAt;
+    return this.toVehicle(vehicle);
+  }
+
   toVehicle(vehicle) {
     if (!vehicle) return null;
     return {
@@ -74,6 +98,8 @@ class MemoryVehicleRepository {
       fuelType: vehicle.fuelType,
       transmission: vehicle.transmission,
       currentMileage: vehicle.currentMileage,
+      obdSessionActive: vehicle.obdSessionActive === true,
+      status: vehicle.status || "ACTIVE",
     };
   }
 }
@@ -237,5 +263,40 @@ test("gets and updates the VIN only for the vehicle owner", async () => {
   await assert.rejects(
     () => otherUserService.get("access-token", vehicle.vehicleId),
     (error) => error instanceof ApiError && error.code === "VEHICLE_NOT_FOUND" && error.status === 404
+  );
+});
+
+test("deactivates only an owned vehicle and keeps its global plate reserved", async () => {
+  const ownerService = createService();
+  const vehicle = await ownerService.create("access-token", validRequest());
+
+  const deactivated = await ownerService.deactivate("access-token", vehicle.vehicleId);
+  assert.equal(deactivated.status, "INACTIVE");
+  assert.deepEqual(await ownerService.list("access-token"), []);
+
+  await assert.rejects(
+    () => ownerService.get("access-token", vehicle.vehicleId),
+    (error) => error instanceof ApiError && error.code === "VEHICLE_NOT_FOUND"
+  );
+
+  const otherUserService = createService(
+    "user-2",
+    "other@example.com",
+    ownerService.vehicleRepository
+  );
+  await assert.rejects(
+    () => otherUserService.create("access-token", validRequest()),
+    (error) => error instanceof ApiError && error.code === "VEHICLE_ALREADY_EXISTS"
+  );
+});
+
+test("does not deactivate a vehicle while an OBD session is active", async () => {
+  const service = createService();
+  const vehicle = await service.create("access-token", validRequest());
+  service.vehicleRepository.vehicles[0].obdSessionActive = true;
+
+  await assert.rejects(
+    () => service.deactivate("access-token", vehicle.vehicleId),
+    (error) => error instanceof ApiError && error.code === "OBD_SESSION_ACTIVE" && error.status === 409
   );
 });
