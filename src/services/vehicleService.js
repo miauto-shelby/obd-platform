@@ -26,6 +26,7 @@ class VehicleService {
         ...vehicle,
         createdAt: new Date(),
         updatedAt: new Date(),
+        lastSelectedAt: new Date(),
       });
     } catch (error) {
       if (error && error.code === 11000) {
@@ -47,6 +48,30 @@ class VehicleService {
   async get(accessToken, vehicleId) {
     const user = await this.authService.getAuthenticatedUser(accessToken);
     return this.findOwnedVehicle(vehicleId, user.id);
+  }
+
+  async getActive(accessToken) {
+    const user = await this.authService.getAuthenticatedUser(accessToken);
+    const vehicles = await this.vehicleRepository.listByUserId(user.id);
+    if (!vehicles.length) {
+      throw new ApiError("ACTIVE_VEHICLE_NOT_FOUND", "No tienes un vehículo activo seleccionado.", 404);
+    }
+    return vehicles[0];
+  }
+
+  async selectActive(accessToken, request) {
+    const user = await this.authService.getAuthenticatedUser(accessToken);
+    const vehicleId = String(request?.vehicleId || "").trim();
+    await this.findOwnedVehicle(vehicleId, user.id);
+    const selected = await this.vehicleRepository.markSelectedByIdAndUserId(
+      vehicleId,
+      user.id,
+      new Date()
+    );
+    if (!selected) {
+      throw new ApiError("VEHICLE_NOT_FOUND", "El vehículo no fue encontrado.", 404);
+    }
+    return selected;
   }
 
   async updateVin(accessToken, vehicleId, request) {

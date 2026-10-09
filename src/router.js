@@ -82,6 +82,27 @@ function createRouter(authService, vehicleService) {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/v1/vehicles/active") {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      sendJson(res, 200, await vehicleService.getActive(token));
+      return;
+    }
+
+    if (req.method === "PUT" && url.pathname === "/api/v1/vehicles/active") {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      const body = await readJsonBody(req);
+      sendJson(res, 200, await vehicleService.selectActive(token, body));
+      return;
+    }
+
     const vehicleDetail = url.pathname.match(/^\/api\/v1\/vehicles\/([^/]+)$/);
     if (req.method === "GET" && vehicleDetail) {
       const token = getBearerToken(req);

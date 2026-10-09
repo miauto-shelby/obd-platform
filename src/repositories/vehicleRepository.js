@@ -46,7 +46,7 @@ class VehicleRepository {
   async listByUserId(userId) {
     const documents = await this.collection
       .find({ userId, status: { $ne: "INACTIVE" } })
-      .sort({ updatedAt: -1, createdAt: -1 })
+      .sort({ lastSelectedAt: -1, updatedAt: -1, createdAt: -1 })
       .toArray();
     return documents.map((document) => this.toVehicle(document));
   }
@@ -77,6 +77,15 @@ class VehicleRepository {
     const result = await this.collection.findOneAndUpdate(
       { _id: vehicleId, userId, status: { $ne: "INACTIVE" } },
       { $set: { ...changes, updatedAt } },
+      { returnDocument: "after" }
+    );
+    return this.toVehicle(result);
+  }
+
+  async markSelectedByIdAndUserId(vehicleId, userId, selectedAt) {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: vehicleId, userId, status: { $ne: "INACTIVE" } },
+      { $set: { lastSelectedAt: selectedAt } },
       { returnDocument: "after" }
     );
     return this.toVehicle(result);

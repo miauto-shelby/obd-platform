@@ -54,6 +54,15 @@ class MemoryVehicleRepository {
     return this.toVehicle(vehicle);
   }
 
+  async markSelectedByIdAndUserId(vehicleId, userId, selectedAt) {
+    const vehicle = this.vehicles.find(
+      (item) => item.id === vehicleId && item.userId === userId && item.status !== "INACTIVE"
+    );
+    if (!vehicle) return null;
+    vehicle.lastSelectedAt = selectedAt;
+    return this.toVehicle(vehicle);
+  }
+
   async updatePlateById(vehicleId, plate, plateNormalized, auditEntry, updatedAt) {
     const vehicle = this.vehicles.find((item) => item.id === vehicleId);
     if (!vehicle) return null;
@@ -124,6 +133,18 @@ test("creates and lists vehicles only for the authenticated user", async () => {
   assert.equal(vehicle.nickname, null);
   assert.equal(vehicle.vin, null);
   assert.deepEqual(await service.list("access-token"), [vehicle]);
+});
+
+test("remembers the last active vehicle selected by its owner", async () => {
+  const service = createService();
+  const first = await service.create("access-token", validRequest());
+  const second = await service.create("access-token", { ...validRequest(), plate: "XYZ789" });
+
+  await service.selectActive("access-token", { vehicleId: first.vehicleId });
+  const active = await service.getActive("access-token");
+
+  assert.equal(active.vehicleId, first.vehicleId);
+  assert.notEqual(active.vehicleId, second.vehicleId);
 });
 
 test("rejects duplicate plates anywhere in the platform", async () => {
