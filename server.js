@@ -1,5 +1,6 @@
 const { createApp } = require("./src/app");
 const { config } = require("./src/config");
+const { safeErrorSummary } = require("./src/utils/safeLogging");
 
 async function start() {
   const { server, close } = await createApp();
@@ -20,6 +21,6 @@ async function start() {
 }
 
 start().catch((error) => {
-  console.error(`Unable to start backend: ${error.message}`);
+  console.error(`[SERVER] Unable to start backend: ${safeErrorSummary(error)}`);
   process.exit(1);
 });
