@@ -14,6 +14,12 @@ class MemoryVehicleRepository {
       error.code = 11000;
       throw error;
     }
+    if (vehicle.vin && this.vehicles.some((item) => item.vin === vehicle.vin)) {
+      const error = new Error("duplicate key");
+      error.code = 11000;
+      error.keyPattern = { vin: 1 };
+      throw error;
+    }
     this.vehicles.push(vehicle);
     return this.toVehicle(vehicle);
   }
@@ -42,6 +48,12 @@ class MemoryVehicleRepository {
   async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
     const vehicle = this.vehicles.find((item) => item.id === vehicleId && item.userId === userId);
     if (!vehicle) return null;
+    if (vin && this.vehicles.some((item) => item.id !== vehicleId && item.vin === vin)) {
+      const error = new Error("duplicate key");
+      error.code = 11000;
+      error.keyPattern = { vin: 1 };
+      throw error;
+    }
     vehicle.vin = vin;
     vehicle.updatedAt = updatedAt;
     return this.toVehicle(vehicle);
@@ -160,6 +172,30 @@ test("rejects duplicate plates anywhere in the platform", async () => {
   await assert.rejects(
     () => anotherUserService.create("access-token", validRequest()),
     (error) => error instanceof ApiError && error.code === "VEHICLE_ALREADY_EXISTS" && error.status === 409
+  );
+});
+
+test("rejects a VIN already assigned to another vehicle", async () => {
+  const service = createService();
+  await service.create("access-token", {
+    ...validRequest(),
+    vin: "1HGCM82633A004352",
+  });
+
+  await assert.rejects(
+    () => service.create("access-token", {
+      ...validRequest(),
+      plate: "XYZ789",
+      vin: "1HGCM82633A004352",
+    }),
+    (error) => error instanceof ApiError && error.code === "VIN_ALREADY_REGISTERED" && error.status === 409
+  );
+
+  const second = await service.create("access-token", { ...validRequest(), plate: "XYZ789" });
+
+  await assert.rejects(
+    () => service.updateVin("access-token", second.vehicleId, { vin: "1HGCM82633A004352" }),
+    (error) => error instanceof ApiError && error.code === "VIN_ALREADY_REGISTERED" && error.status === 409
   );
 });
 
@@ -291,6 +327,16 @@ test("deactivates only an owned vehicle and keeps its global plate reserved", as
   const ownerService = createService();
   const vehicle = await ownerService.create("access-token", validRequest());
 
+  const otherUserService = createService(
+    "user-2",
+    "other@example.com",
+    ownerService.vehicleRepository
+  );
+  await assert.rejects(
+    () => otherUserService.deactivate("access-token", vehicle.vehicleId),
+    (error) => error instanceof ApiError && error.code === "VEHICLE_NOT_FOUND" && error.status === 404
+  );
+
   const deactivated = await ownerService.deactivate("access-token", vehicle.vehicleId);
   assert.equal(deactivated.status, "INACTIVE");
   assert.deepEqual(await ownerService.list("access-token"), []);
@@ -300,11 +346,6 @@ test("deactivates only an owned vehicle and keeps its global plate reserved", as
     (error) => error instanceof ApiError && error.code === "VEHICLE_NOT_FOUND"
   );
 
-  const otherUserService = createService(
-    "user-2",
-    "other@example.com",
-    ownerService.vehicleRepository
-  );
   await assert.rejects(
     () => otherUserService.create("access-token", validRequest()),
     (error) => error instanceof ApiError && error.code === "VEHICLE_ALREADY_EXISTS"

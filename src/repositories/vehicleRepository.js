@@ -24,9 +24,38 @@ class VehicleRepository {
       );
     }
 
+    const duplicateVin = await this.collection
+      .aggregate([
+        { $match: { vin: { $type: "string", $ne: "" } } },
+        {
+          $group: {
+            _id: "$vin",
+            vehicleIds: { $push: "$_id" },
+            count: { $sum: 1 },
+          },
+        },
+        { $match: { count: { $gt: 1 } } },
+        { $limit: 1 },
+      ])
+      .next();
+
+    if (duplicateVin) {
+      throw new Error(
+        `Cannot enforce globally unique VINs until duplicate vehicles are reviewed: ${duplicateVin.vehicleIds.join(", ")}`
+      );
+    }
+
     await this.collection.createIndex(
       { plateNormalized: 1 },
       { unique: true, name: "plateNormalized_unique" }
+    );
+    await this.collection.createIndex(
+      { vin: 1 },
+      {
+        unique: true,
+        name: "vin_unique_when_present",
+        partialFilterExpression: { vin: { $type: "string" } },
+      }
     );
     try {
       await this.collection.dropIndex("userId_1_plateNormalized_1");

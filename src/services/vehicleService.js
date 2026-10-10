@@ -29,13 +29,7 @@ class VehicleService {
         lastSelectedAt: new Date(),
       });
     } catch (error) {
-      if (error && error.code === 11000) {
-        throw new ApiError(
-          "VEHICLE_ALREADY_EXISTS",
-          "Ya existe un vehículo registrado con esa placa.",
-          409
-        );
-      }
+      this.throwUniqueVehicleError(error);
       throw error;
     }
   }
@@ -77,12 +71,17 @@ class VehicleService {
   async updateVin(accessToken, vehicleId, request) {
     const user = await this.authService.getAuthenticatedUser(accessToken);
     await this.findOwnedVehicle(vehicleId, user.id);
-    return this.vehicleRepository.updateVinByIdAndUserId(
-      vehicleId,
-      user.id,
-      this.optionalVin(request?.vin),
-      new Date()
-    );
+    try {
+      return await this.vehicleRepository.updateVinByIdAndUserId(
+        vehicleId,
+        user.id,
+        this.optionalVin(request?.vin),
+        new Date()
+      );
+    } catch (error) {
+      this.throwUniqueVehicleError(error);
+      throw error;
+    }
   }
 
   async updateProfile(accessToken, vehicleId, request) {
@@ -124,13 +123,7 @@ class VehicleService {
         changedAt
       );
     } catch (error) {
-      if (error && error.code === 11000) {
-        throw new ApiError(
-          "VEHICLE_ALREADY_EXISTS",
-          "Ya existe un vehículo registrado con esa placa.",
-          409
-        );
-      }
+      this.throwUniqueVehicleError(error);
       throw error;
     }
   }
@@ -323,6 +316,26 @@ class VehicleService {
         403
       );
     }
+  }
+
+  throwUniqueVehicleError(error) {
+    if (!error || error.code !== 11000) {
+      return;
+    }
+
+    if (error.keyPattern?.vin || error.index === "vin_unique_when_present") {
+      throw new ApiError(
+        "VIN_ALREADY_REGISTERED",
+        "Ya existe un vehículo registrado con ese VIN.",
+        409
+      );
+    }
+
+    throw new ApiError(
+      "VEHICLE_ALREADY_EXISTS",
+      "Ya existe un vehículo registrado con esa placa.",
+      409
+    );
   }
 }
 
