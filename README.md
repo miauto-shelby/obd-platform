@@ -110,6 +110,16 @@ Para borrar únicamente los datos locales de prueba, sin tocar Atlas:
 docker compose -f compose.local.yaml down --volumes
 ```
 
+## Prueba local en iPhone desde una Mac
+
+La guía para levantar Docker y ejecutar Flutter en un iPhone físico está en el repositorio móvil, en `docs/pruebas-ios-mac.md`. Para Android, este repositorio mantiene el puerto limitado a `127.0.0.1` y usa `adb reverse`. Para una prueba temporal en iPhone, la Mac y el iPhone deben compartir Wi-Fi y Docker debe exponerse únicamente durante la prueba:
+
+```bash
+API_HOST_BINDING=0.0.0.0 docker compose --env-file .env.docker -f compose.local.yaml up --build --detach
+```
+
+El valor por defecto sigue siendo `127.0.0.1`, por lo que no cambia el comportamiento habitual de Android.
+
 ## Preparar otro computador Windows
 
 Para probar la app en otro PC con Android por USB, el repositorio incluye un preparador. Instala Git, Docker Desktop y Android Studio mediante `winget`, descarga Flutter estable y abre Docker Desktop. No usa Atlas ni solicita las credenciales privadas de otra persona.
