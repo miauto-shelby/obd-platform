@@ -70,14 +70,31 @@ class VehicleService {
 
   async updateVin(accessToken, vehicleId, request) {
     const user = await this.authService.getAuthenticatedUser(accessToken);
-    await this.findOwnedVehicle(vehicleId, user.id);
+    const vehicle = await this.findOwnedVehicle(vehicleId, user.id);
+    if (vehicle.vin) {
+      throw new ApiError(
+        "VIN_CHANGE_REQUIRES_ADMIN",
+        "El VIN ya fue registrado. Solo un administrador puede corregirlo.",
+        409
+      );
+    }
+
+    const vin = this.requiredVin(request?.vin);
     try {
-      return await this.vehicleRepository.updateVinByIdAndUserId(
+      const registered = await this.vehicleRepository.registerVinByIdAndUserId(
         vehicleId,
         user.id,
-        this.optionalVin(request?.vin),
+        vin,
         new Date()
       );
+      if (!registered) {
+        throw new ApiError(
+          "VIN_CHANGE_REQUIRES_ADMIN",
+          "El VIN ya fue registrado. Solo un administrador puede corregirlo.",
+          409
+        );
+      }
+      return registered;
     } catch (error) {
       this.throwUniqueVehicleError(error);
       throw error;
@@ -115,6 +132,34 @@ class VehicleService {
         {
           previousPlate: vehicle.plate,
           newPlate: plate,
+          reason,
+          changedAt,
+          changedByUserId: admin.id,
+          changedByEmail: admin.email,
+        },
+        changedAt
+      );
+    } catch (error) {
+      this.throwUniqueVehicleError(error);
+      throw error;
+    }
+  }
+
+  async updateVinAsAdmin(accessToken, vehicleId, request) {
+    const admin = await this.authService.getAuthenticatedUser(accessToken);
+    this.ensureAdministrator(admin);
+
+    const vehicle = await this.findVehicle(vehicleId);
+    const { vin, reason } = this.normalizeAdminVinUpdateRequest(request, vehicle.vin);
+    const changedAt = new Date();
+
+    try {
+      return await this.vehicleRepository.updateVinById(
+        vehicleId,
+        vin,
+        {
+          previousVin: vehicle.vin,
+          newVin: vin,
           reason,
           changedAt,
           changedByUserId: admin.id,
@@ -271,6 +316,14 @@ class VehicleService {
     return vin;
   }
 
+  requiredVin(value) {
+    const vin = this.optionalVin(value);
+    if (!vin) {
+      throw new ApiError("VALIDATION_ERROR", "El VIN es obligatorio para registrarlo.", 400);
+    }
+    return vin;
+  }
+
   normalizePlate(value) {
     const plate = String(value || "").trim().toUpperCase();
     if (!plate || plate.length > 12 || !/^[A-Z0-9 -]+$/.test(plate)) {
@@ -307,12 +360,40 @@ class VehicleService {
     return { plate, plateNormalized, reason };
   }
 
+  normalizeAdminVinUpdateRequest(request, currentVin) {
+    if (!request || typeof request !== "object" || Array.isArray(request)) {
+      throw new ApiError("VALIDATION_ERROR", "Los datos del VIN no son válidos.", 400);
+    }
+    const suppliedFields = Object.keys(request);
+    if (
+      suppliedFields.length !== 2 ||
+      !Object.hasOwn(request, "vin") ||
+      !Object.hasOwn(request, "reason")
+    ) {
+      throw new ApiError(
+        "VALIDATION_ERROR",
+        "Solo se permiten los campos vin y reason para corregir un VIN.",
+        400
+      );
+    }
+    const vin = this.requiredVin(request.vin);
+    if (vin === currentVin) {
+      throw new ApiError("VALIDATION_ERROR", "El nuevo VIN debe ser diferente.", 400);
+    }
+    const reason = this.requiredText(
+      request.reason,
+      300,
+      "El motivo de la corrección es obligatorio."
+    );
+    return { vin, reason };
+  }
+
   ensureAdministrator(user) {
     const email = String(user?.email || "").trim().toLowerCase();
     if (!email || !this.adminEmails.has(email)) {
       throw new ApiError(
         "ADMIN_ACCESS_REQUIRED",
-        "Solo un administrador puede corregir la placa.",
+        "Solo un administrador puede realizar esta corrección.",
         403
       );
     }

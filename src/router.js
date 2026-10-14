@@ -166,6 +166,24 @@ function createRouter(authService, vehicleService) {
       return;
     }
 
+    const adminVehicleVin = url.pathname.match(
+      /^\/api\/v1\/admin\/vehicles\/([^/]+)\/vin$/
+    );
+    if (req.method === "PATCH" && adminVehicleVin) {
+      const token = getBearerToken(req);
+      if (!token) {
+        throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      }
+
+      const body = await readJsonBody(req);
+      sendJson(
+        res,
+        200,
+        await vehicleService.updateVinAsAdmin(token, adminVehicleVin[1], body)
+      );
+      return;
+    }
+
     throw new ApiError("NOT_FOUND", "Ruta no encontrada.", 404);
   };
 }

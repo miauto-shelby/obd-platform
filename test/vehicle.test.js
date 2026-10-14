@@ -45,8 +45,14 @@ class MemoryVehicleRepository {
     return this.toVehicle(this.vehicles.find((vehicle) => vehicle.id === vehicleId));
   }
 
-  async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
-    const vehicle = this.vehicles.find((item) => item.id === vehicleId && item.userId === userId);
+  async registerVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
+    const vehicle = this.vehicles.find(
+      (item) =>
+        item.id === vehicleId &&
+        item.userId === userId &&
+        item.status !== "INACTIVE" &&
+        !item.vin
+    );
     if (!vehicle) return null;
     if (vin && this.vehicles.some((item) => item.id !== vehicleId && item.vin === vin)) {
       const error = new Error("duplicate key");
@@ -55,6 +61,21 @@ class MemoryVehicleRepository {
       throw error;
     }
     vehicle.vin = vin;
+    vehicle.updatedAt = updatedAt;
+    return this.toVehicle(vehicle);
+  }
+
+  async updateVinById(vehicleId, vin, auditEntry, updatedAt) {
+    const vehicle = this.vehicles.find((item) => item.id === vehicleId);
+    if (!vehicle) return null;
+    if (this.vehicles.some((item) => item.id !== vehicleId && item.vin === vin)) {
+      const error = new Error("duplicate key");
+      error.code = 11000;
+      error.keyPattern = { vin: 1 };
+      throw error;
+    }
+    vehicle.vin = vin;
+    vehicle.vinChangeHistory = [...(vehicle.vinChangeHistory || []), auditEntry];
     vehicle.updatedAt = updatedAt;
     return this.toVehicle(vehicle);
   }
@@ -294,7 +315,7 @@ test("updates the basic profile without accepting manual mileage", async () => {
   );
 });
 
-test("gets and updates the VIN only for the vehicle owner", async () => {
+test("allows an owner to register a VIN once and blocks later replacements", async () => {
   const service = createService();
   const vehicle = await service.create("access-token", validRequest());
 
@@ -305,11 +326,31 @@ test("gets and updates the VIN only for the vehicle owner", async () => {
   });
   assert.equal(updated.vin, "1HGCM82633A004352");
 
-  const cleared = await service.updateVin("access-token", vehicle.vehicleId, { vin: null });
-  assert.equal(cleared.vin, null);
+  await assert.rejects(
+    () => service.updateVin("access-token", vehicle.vehicleId, { vin: null }),
+    (error) => error instanceof ApiError && error.code === "VIN_CHANGE_REQUIRES_ADMIN" && error.status === 409
+  );
 
   await assert.rejects(
-    () => service.updateVin("access-token", vehicle.vehicleId, { vin: "NO-VALIDO" }),
+    () =>
+      service.updateVin("access-token", vehicle.vehicleId, {
+        vin: "1M8GDM9AXKP042788",
+      }),
+    (error) => error instanceof ApiError && error.code === "VIN_CHANGE_REQUIRES_ADMIN" && error.status === 409
+  );
+
+  const pendingVehicle = await service.create("access-token", {
+    ...validRequest(),
+    plate: "VIN123",
+  });
+
+  await assert.rejects(
+    () => service.updateVin("access-token", pendingVehicle.vehicleId, { vin: null }),
+    (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
+  );
+
+  await assert.rejects(
+    () => service.updateVin("access-token", pendingVehicle.vehicleId, { vin: "NO-VALIDO" }),
     (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
   );
 
@@ -321,6 +362,44 @@ test("gets and updates the VIN only for the vehicle owner", async () => {
     () => otherUserService.get("access-token", vehicle.vehicleId),
     (error) => error instanceof ApiError && error.code === "VEHICLE_NOT_FOUND" && error.status === 404
   );
+});
+
+test("allows only administrators to correct a VIN and keeps an internal audit", async () => {
+  const ownerService = createService();
+  const vehicle = await ownerService.create("access-token", {
+    ...validRequest(),
+    vin: "1HGCM82633A004352",
+  });
+
+  const nonAdminService = createService(
+    "user-2",
+    "user-2@example.com",
+    ownerService.vehicleRepository
+  );
+  await assert.rejects(
+    () =>
+      nonAdminService.updateVinAsAdmin("access-token", vehicle.vehicleId, {
+        vin: "1M8GDM9AXKP042788",
+        reason: "VIN digitado incorrectamente durante el registro.",
+      }),
+    (error) => error instanceof ApiError && error.code === "ADMIN_ACCESS_REQUIRED" && error.status === 403
+  );
+
+  const adminService = new VehicleService({
+    authService: { getAuthenticatedUser: async () => ({ id: "admin-1", email: "admin@example.com" }) },
+    vehicleRepository: ownerService.vehicleRepository,
+    adminEmails: ["admin@example.com"],
+  });
+  const updated = await adminService.updateVinAsAdmin("access-token", vehicle.vehicleId, {
+    vin: "1M8GDM9AXKP042788",
+    reason: "VIN digitado incorrectamente durante el registro.",
+  });
+
+  assert.equal(updated.vin, "1M8GDM9AXKP042788");
+  const storedVehicle = ownerService.vehicleRepository.vehicles[0];
+  assert.equal(storedVehicle.vinChangeHistory.length, 1);
+  assert.equal(storedVehicle.vinChangeHistory[0].previousVin, "1HGCM82633A004352");
+  assert.equal(storedVehicle.vinChangeHistory[0].newVin, "1M8GDM9AXKP042788");
 });
 
 test("deactivates only an owned vehicle and keeps its global plate reserved", async () => {

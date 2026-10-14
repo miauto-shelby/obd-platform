@@ -93,10 +93,22 @@ class VehicleRepository {
     return this.toVehicle(await this.collection.findOne({ _id: vehicleId }));
   }
 
-  async updateVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
+  async registerVinByIdAndUserId(vehicleId, userId, vin, updatedAt) {
     const result = await this.collection.findOneAndUpdate(
-      { _id: vehicleId, userId, status: { $ne: "INACTIVE" } },
+      { _id: vehicleId, userId, status: { $ne: "INACTIVE" }, vin: null },
       { $set: { vin, updatedAt } },
+      { returnDocument: "after" }
+    );
+    return this.toVehicle(result);
+  }
+
+  async updateVinById(vehicleId, vin, auditEntry, updatedAt) {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: vehicleId },
+      {
+        $set: { vin, updatedAt },
+        $push: { vinChangeHistory: auditEntry },
+      },
       { returnDocument: "after" }
     );
     return this.toVehicle(result);

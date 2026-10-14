@@ -37,11 +37,12 @@ http://localhost:8080
 - `PATCH /api/v1/vehicles/:vehicleId/vin`
 - `DELETE /api/v1/vehicles/:vehicleId` (desactivación lógica)
 - `PATCH /api/v1/admin/vehicles/:vehicleId/plate` (administrador; corrección auditada)
+- `PATCH /api/v1/admin/vehicles/:vehicleId/vin` (administrador; corrección auditada)
 - `GET /health`
 
-## Corrección administrativa de placa
+## Correcciones administrativas de placa y VIN
 
-La placa y el VIN —cuando este último exista— son únicos en toda la plataforma. Los usuarios normales no pueden modificar la placa. Cuando una persona registra una placa por error, solo un administrador puede corregirla.
+La placa y el VIN —cuando este último exista— son únicos en toda la plataforma. Los usuarios normales no pueden modificar la placa. El VIN se registra una sola vez: después de guardarlo, un usuario normal no puede borrarlo ni reemplazarlo. Cuando una persona registra una placa o VIN por error, solo un administrador puede corregirlo.
 
 1. En el `.env` local del backend, define los correos autorizados, separados por coma:
 
@@ -60,6 +61,17 @@ ADMIN_EMAILS=admin@ejemplo.com,otro-admin@ejemplo.com
 ```
 
 La corrección deja un registro interno con la placa anterior, nueva placa, motivo, fecha y administrador responsable. Una placa ya registrada genera `409`; un usuario que no sea administrador recibe `403`.
+
+Para corregir un VIN ya registrado, enviar `PATCH /api/v1/admin/vehicles/{vehicleId}/vin`:
+
+```json
+{
+  "vin": "1M8GDM9AXKP042788",
+  "reason": "Corrección de error de digitación informado por el usuario."
+}
+```
+
+El nuevo VIN debe ser válido, diferente y único. La corrección conserva el VIN anterior, el nuevo VIN, motivo, fecha y administrador responsable. Un usuario normal que intente modificar un VIN ya registrado recibe `409 VIN_CHANGE_REQUIRES_ADMIN`.
 
 Al iniciar, el backend verifica que no existan placas ni VIN duplicados antes de activar las reglas globales. Si encuentra una duplicidad antigua, se detiene sin borrar ni modificar datos y muestra los identificadores que debe revisar un administrador.
 
