@@ -16,6 +16,13 @@ El backend no inicia sin `MONGODB_URI`; así evitamos volver a operar con usuari
 
 MongoDB guarda `users` y `sessions`. Las sesiones expiran automáticamente cuando vence el refresh token; solo se guarda el hash SHA-256 del refresh token, nunca el token completo.
 
+## Manejo seguro de variables y registros
+
+- `.env` y `.env.docker` son archivos locales y están excluidos de Git. Se parte de `.env.example`, sin copiar valores reales al repositorio.
+- Cada ambiente debe tener un `JWT_SECRET` largo y diferente. El backend no inicia si falta esta variable.
+- Los registros técnicos solo incluyen la ruta, el estado y datos operativos mínimos. No deben contener `idToken`, `accessToken`, `refreshToken`, contraseñas ni la cadena completa de MongoDB.
+- Si ocurre un error al iniciar, el backend oculta las credenciales que pudiera traer el mensaje técnico antes de mostrarlo en consola.
+
 El servidor queda por defecto en:
 
 ```text

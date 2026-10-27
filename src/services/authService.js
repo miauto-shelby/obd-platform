@@ -32,7 +32,9 @@ class AuthService {
       });
       payload = ticket.getPayload();
     } catch (error) {
-      console.log(`[AUTH] Google token verification failed: ${error.message}`);
+      // The token verifier can include provider details in its message. Keep the
+      // operational trace without allowing a token or provider response into logs.
+      console.warn("[AUTH] Google token verification failed");
       throw new ApiError(
         "INVALID_GOOGLE_TOKEN",
         "El token de Google no es v\u00E1lido.",
