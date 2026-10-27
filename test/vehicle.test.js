@@ -391,9 +391,14 @@ test("allows only administrators to correct a VIN and keeps an internal audit", 
   );
 
   const adminService = new VehicleService({
-    authService: { getAuthenticatedUser: async () => ({ id: "admin-1", email: "admin@example.com" }) },
+    authService: {
+      getAuthenticatedUser: async () => ({
+        id: "admin-1",
+        email: "admin@example.com",
+        roles: ["USER", "ADMIN"],
+      }),
+    },
     vehicleRepository: ownerService.vehicleRepository,
-    adminEmails: ["admin@example.com"],
   });
   const updated = await adminService.updateVinAsAdmin("access-token", vehicle.vehicleId, {
     vin: "1M8GDM9AXKP042788",
