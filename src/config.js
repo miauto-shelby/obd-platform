@@ -13,10 +13,6 @@ const config = {
   refreshTokenTtlSeconds: 60 * 60 * 24 * 7,
   mongoUri: process.env.MONGODB_URI || "",
   mongoDatabaseName: process.env.MONGODB_DATABASE || "my_auto",
-  adminEmails: String(process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean),
 };
 
 module.exports = { config };

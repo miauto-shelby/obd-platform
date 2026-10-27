@@ -51,14 +51,24 @@ http://localhost:8080
 
 La placa y el VIN —cuando este último exista— son únicos en toda la plataforma. Los usuarios normales no pueden modificar la placa. El VIN se registra una sola vez: después de guardarlo, un usuario normal no puede borrarlo ni reemplazarlo. Cuando una persona registra una placa o VIN por error, solo un administrador puede corregirlo.
 
-1. En el `.env` local del backend, define los correos autorizados, separados por coma:
+1. El usuario que será administrador debe iniciar sesión al menos una vez para existir en la base de datos.
+2. En el `.env` local del backend, agrega temporalmente estas dos líneas con el responsable real del cambio:
 
 ```text
-ADMIN_EMAILS=admin@ejemplo.com,otro-admin@ejemplo.com
+ADMIN_ROLE_MAINTENANCE=true
+ROLE_CHANGE_ACTOR=responsable@ejemplo.com
 ```
 
-2. El administrador debe iniciar sesión normalmente y usar un access token válido.
-3. Enviar `PATCH /api/v1/admin/vehicles/{vehicleId}/plate` con este cuerpo:
+3. Desde la carpeta del backend, asigna el rol persistente:
+
+```powershell
+npm run admin:grant-role -- admin@ejemplo.com ADMIN
+```
+
+Este comando no crea usuarios ni expone una ruta pública. Registra el rol, quién lo asignó y la fecha en MongoDB. Al terminar, elimina `ADMIN_ROLE_MAINTENANCE=true` del archivo local.
+
+4. El administrador debe iniciar sesión normalmente y usar un access token válido.
+5. Enviar `PATCH /api/v1/admin/vehicles/{vehicleId}/plate` con este cuerpo:
 
 ```json
 {
@@ -67,7 +77,7 @@ ADMIN_EMAILS=admin@ejemplo.com,otro-admin@ejemplo.com
 }
 ```
 
-La corrección deja un registro interno con la placa anterior, nueva placa, motivo, fecha y administrador responsable. Una placa ya registrada genera `409`; un usuario que no sea administrador recibe `403`.
+La corrección deja un registro interno con la placa anterior, nueva placa, motivo, fecha y administrador responsable. Una placa ya registrada genera `409`; un usuario que no tenga el rol persistente `ADMIN` recibe `403`.
 
 Para corregir un VIN ya registrado, enviar `PATCH /api/v1/admin/vehicles/{vehicleId}/vin`:
 
@@ -82,7 +92,14 @@ El nuevo VIN debe ser válido, diferente y único. La corrección conserva el VI
 
 Al iniciar, el backend verifica que no existan placas ni VIN duplicados antes de activar las reglas globales. Si encuentra una duplicidad antigua, se detiene sin borrar ni modificar datos y muestra los identificadores que debe revisar un administrador.
 
-Para generar un token temporal de administrador dentro del entorno Docker local, agrega también `POSTMAN_TEST_MODE=true` y el correo en `ADMIN_EMAILS` al archivo `.env.docker`, luego ejecuta:
+Para generar un token temporal de un administrador dentro del entorno Docker local, agrega temporalmente `ADMIN_ROLE_MAINTENANCE=true` y `ROLE_CHANGE_ACTOR=responsable@ejemplo.com` al archivo `.env.docker`, inicia el entorno y asigna el rol antes de generar el token:
+
+```powershell
+docker compose -f compose.local.yaml up -d
+docker compose -f compose.local.yaml exec api npm run admin:grant-role -- admin@ejemplo.com ADMIN
+```
+
+Después agrega `POSTMAN_TEST_MODE=true` al archivo `.env.docker` y ejecuta:
 
 ```powershell
 docker compose -f compose.local.yaml exec api node scripts/create-postman-test-token.js admin@ejemplo.com
