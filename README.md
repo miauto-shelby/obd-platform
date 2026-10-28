@@ -2,6 +2,16 @@
 
 Backend Node para la app móvil de OBD2.
 
+## Documentación y contratos
+
+La documentación de arquitectura, decisiones, contratos, diagramas y pruebas de API vive en este mismo repositorio:
+
+- [Índice de documentación de API](docs/api/README.md)
+- [Contrato OpenAPI](openapi/openapi.yaml)
+- [Colección oficial de Postman](postman/My-Auto-Vehicle-Validation.postman_collection.json)
+
+La fuente que se debe revisar antes de aprobar cambios es esta rama del backend; el antiguo repositorio documental `OBD2-API` se conserva temporalmente solo hasta completar la revisión de la migración.
+
 ## Run
 
 1. Copia `.env.example` como `.env` y configura `MONGODB_URI`, `MONGODB_DATABASE` y `JWT_SECRET`.

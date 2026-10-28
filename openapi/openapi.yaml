@@ -1,0 +1,502 @@
+openapi: 3.1.0
+
+info:
+  title: OBD2 API
+  version: 1.0.0
+  description: API para la aplicación de diagnóstico vehicular.
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /api/v1/auth/google:
+    post:
+      tags:
+        - Authentication
+      summary: Login con Google
+      description: |
+        Autentica un usuario utilizando un idToken generado por Google.
+
+        Si el usuario no existe, el sistema lo registra automáticamente
+        y devuelve un JWT para acceder a los demás microservicios.
+      operationId: loginWithGoogle
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleLoginRequest'
+      responses:
+        '200':
+          description: Login exitoso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                expiresIn: 3600
+                tokenType: Bearer
+                user:
+                  id: c8d2f4c1-3f8e-4b72-9d4d-1d3c1d8a8e11
+                  firstName: Sebastián
+                  lastName: Fajardo
+                  email: sebastian@email.com
+                  photoUrl: https://lh3.googleusercontent.com/...
+        '401':
+          description: Token de Google inválido.
+        '500':
+          description: Error interno del servidor.
+
+  /api/v1/vehicles:
+    get:
+      tags:
+        - Vehicles
+      summary: Lista los vehículos del usuario autenticado
+      operationId: listVehicles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Vehículos asociados a la cuenta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleListResponse'
+        '401':
+          description: Access Token inválido o vencido.
+    post:
+      tags:
+        - Vehicles
+      summary: Registra un vehículo del usuario autenticado
+      operationId: createVehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVehicleRequest'
+      responses:
+        '201':
+          description: Vehículo registrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          description: Datos inválidos o faltantes.
+        '401':
+          description: Access Token inválido o vencido.
+        '409':
+          description: Ya existe un vehículo con esa placa o VIN en toda la plataforma.
+
+  /api/v1/vehicles/{vehicleId}:
+    get:
+      tags:
+        - Vehicles
+      summary: Consulta el detalle de un vehículo propio
+      operationId: getVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      responses:
+        '200':
+          description: Vehículo de la cuenta autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '401':
+          description: Access Token inválido o vencido.
+        '404':
+          description: El vehículo no existe o no pertenece a la cuenta.
+    patch:
+      tags:
+        - Vehicles
+      summary: Actualiza la información básica de un vehículo propio
+      operationId: updateVehicleProfile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVehicleProfileRequest'
+      responses:
+        '200':
+          description: Vehículo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          description: Datos inválidos o sin cambios permitidos.
+        '401':
+          description: Access Token inválido o vencido.
+        '404':
+          description: El vehículo no existe o no pertenece a la cuenta.
+    delete:
+      tags:
+        - Vehicles
+      summary: Desactiva un vehículo propio sin borrar su historial
+      operationId: deactivateVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      responses:
+        '204':
+          description: Vehículo desactivado correctamente.
+        '401':
+          description: Access Token inválido o vencido.
+        '404':
+          description: El vehículo no existe, no pertenece a la cuenta o ya está inactivo.
+        '409':
+          description: El vehículo tiene una sesión OBD2 activa.
+
+  /api/v1/vehicles/active:
+    get:
+      tags: [Vehicles]
+      summary: Consulta el vehículo activo de la cuenta
+      operationId: getActiveVehicle
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Vehículo activo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '401':
+          description: Access Token inválido o vencido.
+        '404':
+          description: La cuenta no tiene vehículos activos.
+    put:
+      tags: [Vehicles]
+      summary: Cambia el vehículo activo de la cuenta
+      operationId: selectActiveVehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vehicleId]
+              properties:
+                vehicleId:
+                  type: string
+      responses:
+        '200':
+          description: Vehículo activo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '401':
+          description: Access Token inválido o vencido.
+        '404':
+          description: El vehículo no existe, está inactivo o no pertenece a la cuenta.
+
+  /api/v1/vehicles/{vehicleId}/vin:
+    patch:
+      tags:
+        - Vehicles
+      summary: Registra una única vez el VIN de un vehículo propio
+      operationId: registerVehicleVin
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVehicleVinRequest'
+      responses:
+        '200':
+          description: Vehículo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          description: VIN inválido o ausente.
+        '401':
+          description: Access Token inválido o vencido.
+        '404':
+          description: El vehículo no existe o no pertenece a la cuenta.
+        '409':
+          description: El VIN ya está asignado a otro vehículo (`VIN_ALREADY_REGISTERED`) o ya fue registrado y requiere corrección administrativa (`VIN_CHANGE_REQUIRES_ADMIN`).
+
+  /api/v1/admin/vehicles/{vehicleId}/vin:
+    patch:
+      tags:
+        - Administration
+      summary: Corrige un VIN registrado con auditoría administrativa
+      operationId: correctVehicleVinAsAdmin
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminVehicleVinCorrectionRequest'
+      responses:
+        '200':
+          description: VIN corregido y auditado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          description: VIN, motivo o solicitud inválidos.
+        '401':
+          description: Access Token inválido o vencido.
+        '403':
+          description: La sesión no pertenece a un usuario con rol persistente ADMIN (`ADMIN_ACCESS_REQUIRED`).
+        '404':
+          description: El vehículo no existe.
+        '409':
+          description: El nuevo VIN ya está asignado a otro vehículo (`VIN_ALREADY_REGISTERED`).
+
+  /api/v1/admin/vehicles/{vehicleId}/plate:
+    patch:
+      tags:
+        - Administration
+      summary: Corrige una placa con auditoría administrativa
+      operationId: correctVehiclePlateAsAdmin
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminVehiclePlateCorrectionRequest'
+      responses:
+        '200':
+          description: Placa corregida y auditada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          description: Placa, motivo o solicitud inválidos.
+        '401':
+          description: Access Token inválido o vencido.
+        '403':
+          description: La sesión no pertenece a un usuario con rol persistente ADMIN (`ADMIN_ACCESS_REQUIRED`).
+        '404':
+          description: El vehículo no existe.
+        '409':
+          description: La nueva placa ya está asignada a otro vehículo (`PLATE_ALREADY_REGISTERED`).
+
+components:
+  parameters:
+    VehicleId:
+      name: vehicleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+
+    GoogleLoginRequest:
+      type: object
+      required:
+        - idToken
+      properties:
+        idToken:
+          type: string
+          description: Token de identidad generado por Google.
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+          example: Sebastián
+        lastName:
+          type: string
+          example: Fajardo
+        email:
+          type: string
+          format: email
+          example: sebastian@gmail.com
+        photoUrl:
+          type: string
+          example: https://lh3.googleusercontent.com/...
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          example: 3600
+        tokenType:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/User'
+
+    CreateVehicleRequest:
+      type: object
+      required:
+        - plate
+        - brand
+        - model
+        - year
+      properties:
+        nickname:
+          type: [string, 'null']
+          maxLength: 60
+        plate:
+          type: string
+          example: ABC123
+        vin:
+          type: [string, 'null']
+          description: VIN único de 17 caracteres. Puede ser null mientras no esté disponible.
+        brand:
+          type: string
+          example: Chevrolet
+        model:
+          type: string
+          example: Onix
+        year:
+          type: integer
+          example: 2022
+        engine:
+          type: [string, 'null']
+        fuelType:
+          type: [string, 'null']
+          example: GASOLINE
+        transmission:
+          type: [string, 'null']
+          example: AUTOMATIC
+
+    Vehicle:
+      allOf:
+        - $ref: '#/components/schemas/CreateVehicleRequest'
+        - type: object
+          required:
+            - vehicleId
+          properties:
+            vehicleId:
+              type: string
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+            currentMileage:
+              type: [integer, 'null']
+              minimum: 0
+              description: Última lectura válida enviada por OBD2. Es null antes de la primera lectura.
+            status:
+              type: string
+              enum: [ACTIVE, INACTIVE]
+              description: Estado interno del vehículo. Las rutas de usuario solo muestran vehículos activos.
+            obdSessionActive:
+              type: boolean
+              description: Indica si una sesión OBD2 está activa; impide la desactivación mientras sea true.
+
+    UpdateVehicleProfileRequest:
+      type: object
+      properties:
+        nickname:
+          type: [string, 'null']
+          maxLength: 60
+        brand:
+          type: string
+          maxLength: 60
+        model:
+          type: string
+          maxLength: 80
+        engine:
+          type: [string, 'null']
+          maxLength: 40
+        fuelType:
+          type: [string, 'null']
+          maxLength: 32
+        transmission:
+          type: [string, 'null']
+          maxLength: 32
+
+    UpdateVehicleVinRequest:
+      type: object
+      required:
+        - vin
+      properties:
+        vin:
+          type: string
+          description: VIN único de 17 caracteres. Solo se admite cuando el vehículo aún no tiene VIN.
+
+    AdminVehicleVinCorrectionRequest:
+      type: object
+      required:
+        - vin
+        - reason
+      properties:
+        vin:
+          type: string
+          description: Nuevo VIN único de 17 caracteres.
+        reason:
+          type: string
+          maxLength: 300
+          description: Motivo obligatorio de la corrección administrativa.
+
+    AdminVehiclePlateCorrectionRequest:
+      type: object
+      required:
+        - plate
+        - reason
+      properties:
+        plate:
+          type: string
+          description: Nueva placa única del vehículo.
+        reason:
+          type: string
+          maxLength: 300
+          description: Motivo obligatorio de la corrección administrativa.
+
+    VehicleListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vehicle'
