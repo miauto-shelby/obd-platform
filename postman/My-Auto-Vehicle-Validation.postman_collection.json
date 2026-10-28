@@ -1,0 +1,31 @@
+{
+  "info": {
+    "name": "My Auto - Validación de vehículos",
+    "description": "Pruebas manuales del backend. Requiere pegar un accessToken válido en el entorno; no incluye secretos.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+  "item": [
+    { "name": "01 - Estado del backend", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/health" } },
+    { "name": "02 - Crear vehículo válido", "event": [{ "listen": "test", "script": { "exec": ["pm.test('Creado', function () { pm.response.to.have.status(201); });", "pm.collectionVariables.set('vehicleId', pm.response.json().vehicleId);"] } }], "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"nickname\": \"Mi Onix\",\n  \"plate\": \"ABC123\",\n  \"vin\": null,\n  \"brand\": \"Chevrolet\",\n  \"model\": \"Onix\",\n  \"year\": 2022,\n  \"engine\": null,\n  \"fuelType\": \"GASOLINE\",\n  \"transmission\": \"AUTOMATIC\"\n}" }, "url": "{{baseUrl}}/api/v1/vehicles" } },
+    { "name": "03 - Listar mis vehículos", "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/vehicles" } },
+    { "name": "04 - Consultar vehículo", "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/vehicles/{{vehicleId}}" } },
+    { "name": "05 - Editar información básica", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"nickname\": \"Auto familiar\",\n  \"brand\": \"Chevrolet\",\n  \"model\": \"Onix\",\n  \"engine\": \"1.0 Turbo\",\n  \"fuelType\": \"GASOLINE\",\n  \"transmission\": null\n}" }, "url": "{{baseUrl}}/api/v1/vehicles/{{vehicleId}}" } },
+    { "name": "06 - Registrar VIN", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"vin\": \"1HGCM82633A004352\" }" }, "url": "{{baseUrl}}/api/v1/vehicles/{{vehicleId}}/vin" } },
+    { "name": "07 - Error: kilometraje manual", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"plate\": \"BAD001\", \"brand\": \"Chevrolet\", \"model\": \"Onix\", \"year\": 2022, \"currentMileage\": 50000 }" }, "url": "{{baseUrl}}/api/v1/vehicles" } },
+    { "name": "08 - Error: VIN inválido", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"vin\": \"VIN-INCORRECTO\" }" }, "url": "{{baseUrl}}/api/v1/vehicles/{{vehicleId}}/vin" } },
+    { "name": "09 - Error: placa duplicada", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"plate\": \"ABC123\", \"brand\": \"Chevrolet\", \"model\": \"Onix\", \"year\": 2022 }" }, "url": "{{baseUrl}}/api/v1/vehicles" } },
+    { "name": "10 - Admin: corregir placa", "event": [{ "listen": "test", "script": { "exec": ["pm.test('Placa corregida', function () { pm.response.to.have.status(200); });"] } }], "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }] }, "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"plate\": \"XYZ789\",\n  \"reason\": \"Corrección de error de digitación confirmado durante la validación.\"\n}" }, "url": "{{baseUrl}}/api/v1/admin/vehicles/{{vehicleId}}/plate" } },
+    { "name": "11 - Consultar vehículo activo", "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/vehicles/active" } },
+    { "name": "12 - Cambiar vehículo activo", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"vehicleId\": \"{{vehicleId}}\" }" }, "url": "{{baseUrl}}/api/v1/vehicles/active" } },
+    { "name": "13 - Error: reemplazar VIN registrado", "event": [{ "listen": "test", "script": { "exec": ["pm.test('Cambio de VIN bloqueado para usuario normal', function () { pm.response.to.have.status(409); });", "pm.test('Código de regla de negocio', function () { pm.expect(pm.response.json().code).to.eql('VIN_CHANGE_REQUIRES_ADMIN'); });"] } }], "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"vin\": \"1M8GDM9AXKP042788\" }" }, "url": "{{baseUrl}}/api/v1/vehicles/{{vehicleId}}/vin" } },
+    { "name": "14 - Admin: corregir VIN", "event": [{ "listen": "test", "script": { "exec": ["pm.test('VIN corregido', function () { pm.response.to.have.status(200); });"] } }], "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminAccessToken}}", "type": "string" }] }, "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"vin\": \"1M8GDM9AXKP042788\",\n  \"reason\": \"VIN corregido tras verificar la documentación del vehículo.\"\n}" }, "url": "{{baseUrl}}/api/v1/admin/vehicles/{{vehicleId}}/vin" } },
+    { "name": "15 - Desactivar vehículo", "event": [{ "listen": "test", "script": { "exec": ["pm.test('Vehículo desactivado', function () { pm.response.to.have.status(204); });"] } }], "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/vehicles/{{vehicleId}}" } }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "PEGA_AQUI_UN_TOKEN_VALIDO" },
+    { "key": "vehicleId", "value": "" },
+    { "key": "adminAccessToken", "value": "PEGA_AQUI_EL_TOKEN_DEL_ADMINISTRADOR" }
+  ]
+}
