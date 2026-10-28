@@ -39,7 +39,7 @@ La regla es: una ruta nueva no se considera terminada si no tiene contrato, diag
 | Vehículos | `GET /api/v1/vehicles/active` | Disponible | [Ver flujo](#13-consultar-el-vehículo-activo) |
 | Vehículos | `PUT /api/v1/vehicles/active` | Disponible | [Ver flujo](#14-cambiar-el-vehículo-activo) |
 
-> Nota para arquitectura: las cuatro rutas de autenticación se encuentran implementadas en el backend y descritas en `03-auth-service.md`. Su incorporación completa a `../../openapi/openapi.yaml` queda como tarea de sincronización documental.
+> Nota para arquitectura: las rutas de autenticación están implementadas en el backend. El contrato estructurado de rutas se mantiene en `../../openapi/openapi.yaml`; las rutas de autenticación que todavía no aparezcan allí se documentarán cuando se modifique su contrato.
 
 ---
 
