@@ -9,6 +9,77 @@ servers:
   - url: http://localhost:8080
 
 paths:
+  /api/v1/vehicle-brands:
+    get:
+      tags: [Vehicle brands]
+      summary: Lista las marcas de vehículo activas
+      operationId: listVehicleBrands
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Marcas disponibles para seleccionar en la aplicación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleBrandListResponse'
+        '401':
+          description: Access Token inválido o vencido.
+
+  /api/v1/admin/vehicle-brands:
+    post:
+      tags: [Administration]
+      summary: Agrega o reactiva una marca de vehículo
+      operationId: createOrActivateVehicleBrand
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleBrandRequest'
+      responses:
+        '201':
+          description: Marca creada o reactivada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleBrand'
+        '403':
+          description: Requiere rol persistente ADMIN.
+
+  /api/v1/admin/vehicle-brands/{brandId}:
+    patch:
+      tags: [Administration]
+      summary: Activa o desactiva una marca de vehículo
+      operationId: updateVehicleBrand
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: brandId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleBrandStatusRequest'
+      responses:
+        '200':
+          description: Estado de la marca actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleBrand'
+        '403':
+          description: Requiere rol persistente ADMIN.
+        '404':
+          description: Marca no encontrada.
+
   /api/v1/auth/google:
     post:
       tags:
@@ -500,3 +571,40 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Vehicle'
+
+    VehicleBrand:
+      type: object
+      required: [brandId, name, active]
+      properties:
+        brandId:
+          type: string
+          example: CHEVROLET
+        name:
+          type: string
+          example: CHEVROLET
+        active:
+          type: boolean
+
+    VehicleBrandRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: OMODA
+
+    VehicleBrandStatusRequest:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: boolean
+
+    VehicleBrandListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/VehicleBrand'

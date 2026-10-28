@@ -2,9 +2,10 @@ const crypto = require("crypto");
 const { ApiError } = require("../errors/apiError");
 
 class VehicleService {
-  constructor({ authService, vehicleRepository }) {
+  constructor({ authService, vehicleRepository, brandCatalogService = null }) {
     this.authService = authService;
     this.vehicleRepository = vehicleRepository;
+    this.brandCatalogService = brandCatalogService;
   }
 
   async create(accessToken, request) {
@@ -17,6 +18,7 @@ class VehicleService {
       );
     }
     const vehicle = this.normalizeCreateRequest(request);
+    await this.ensureAvailableBrand(vehicle.brand);
 
     try {
       return await this.vehicleRepository.create({
@@ -104,6 +106,7 @@ class VehicleService {
     const user = await this.authService.getAuthenticatedUser(accessToken);
     await this.findOwnedVehicle(vehicleId, user.id);
     const changes = this.normalizeProfileUpdateRequest(request);
+    if (changes.brand) await this.ensureAvailableBrand(changes.brand);
     return this.vehicleRepository.updateProfileByIdAndUserId(
       vehicleId,
       user.id,
@@ -218,8 +221,8 @@ class VehicleService {
 
   normalizeCreateRequest(request) {
     const { plate, plateNormalized } = this.normalizePlate(request?.plate);
-    const brand = String(request?.brand || "").trim();
-    const model = String(request?.model || "").trim();
+    const brand = this.requiredText(request?.brand, 60, "La marca es obligatoria.", true);
+    const model = this.requiredText(request?.model, 80, "El modelo es obligatorio.", true);
     const year = Number(request?.year);
     const currentYear = new Date().getUTCFullYear();
 
@@ -242,9 +245,9 @@ class VehicleService {
       currentMileage: null,
       status: "ACTIVE",
       obdSessionActive: false,
-      nickname: this.optionalText(request?.nickname, 60),
+      nickname: this.optionalText(request?.nickname, 60, true),
       vin: this.optionalVin(request?.vin),
-      engine: this.optionalText(request?.engine, 40),
+      engine: this.optionalText(request?.engine, 40, true),
       fuelType: this.optionalText(request?.fuelType, 32, true),
       transmission: this.optionalText(request?.transmission, 32, true),
     };
@@ -279,16 +282,16 @@ class VehicleService {
 
     const changes = {};
     if (Object.hasOwn(request, "nickname")) {
-      changes.nickname = this.optionalText(request.nickname, 60);
+      changes.nickname = this.optionalText(request.nickname, 60, true);
     }
     if (Object.hasOwn(request, "brand")) {
-      changes.brand = this.requiredText(request.brand, 60, "La marca es obligatoria.");
+      changes.brand = this.requiredText(request.brand, 60, "La marca es obligatoria.", true);
     }
     if (Object.hasOwn(request, "model")) {
-      changes.model = this.requiredText(request.model, 80, "El modelo es obligatorio.");
+      changes.model = this.requiredText(request.model, 80, "El modelo es obligatorio.", true);
     }
     if (Object.hasOwn(request, "engine")) {
-      changes.engine = this.optionalText(request.engine, 40);
+      changes.engine = this.optionalText(request.engine, 40, true);
     }
     if (Object.hasOwn(request, "fuelType")) {
       changes.fuelType = this.optionalText(request.fuelType, 32, true);
@@ -299,12 +302,16 @@ class VehicleService {
     return changes;
   }
 
-  requiredText(value, maxLength, message) {
+  requiredText(value, maxLength, message, uppercase = false) {
     const text = String(value || "").trim();
     if (!text || text.length > maxLength) {
       throw new ApiError("VALIDATION_ERROR", message, 400);
     }
-    return text;
+    return uppercase ? text.toUpperCase() : text;
+  }
+
+  async ensureAvailableBrand(brand) {
+    if (this.brandCatalogService) await this.brandCatalogService.assertActiveBrand(brand);
   }
 
   optionalVin(value) {

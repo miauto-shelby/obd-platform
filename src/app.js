@@ -4,9 +4,11 @@ const { createAuthService } = require("./services/authService");
 const { UserRepository } = require("./repositories/userRepository");
 const { SessionRepository } = require("./repositories/sessionRepository");
 const { VehicleRepository } = require("./repositories/vehicleRepository");
+const { VehicleBrandRepository } = require("./repositories/vehicleBrandRepository");
 const { connectToMongo } = require("./repositories/mongo");
 const { createRouter } = require("./router");
 const { VehicleService } = require("./services/vehicleService");
+const { VehicleBrandService } = require("./services/vehicleBrandService");
 const { handleError } = require("./utils/http");
 
 async function createApp() {
@@ -20,17 +22,23 @@ async function createApp() {
     userRepository: new UserRepository(mongo.database),
     sessionRepository: new SessionRepository(mongo.database),
   });
+  const vehicleBrandService = new VehicleBrandService({
+    authService,
+    vehicleBrandRepository: new VehicleBrandRepository(mongo.database),
+  });
   const vehicleService = new VehicleService({
     authService,
     vehicleRepository: new VehicleRepository(mongo.database),
+    brandCatalogService: vehicleBrandService,
   });
   await Promise.all([
     authService.userRepository.ensureIndexes(),
     authService.sessionRepository.ensureIndexes(),
     vehicleService.vehicleRepository.ensureIndexes(),
+    vehicleBrandService.initialize(),
   ]);
 
-  const router = createRouter(authService, vehicleService);
+  const router = createRouter(authService, vehicleService, vehicleBrandService);
 
   const server = http.createServer(async (req, res) => {
     try {

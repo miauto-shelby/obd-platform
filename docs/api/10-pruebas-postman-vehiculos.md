@@ -32,6 +32,7 @@ Después ejecutar las solicitudes 07 a 09. Deben fallar de manera controlada:
 | 13 Intentar reemplazar VIN como usuario | `409 VIN_CHANGE_REQUIRES_ADMIN` | Un VIN registrado no puede borrarse ni cambiarse desde una cuenta normal. |
 | 14 Corrección administrativa de VIN | `200` | Solo el administrador puede corregir el VIN e indicar el motivo; el cambio queda auditado. |
 | 15 Desactivar vehículo | `204` | Desactiva el vehículo creado para la prueba; no borra su historial. |
+| 16 Listar marcas disponibles | `200` | Devuelve solo las marcas activas que la aplicación puede mostrar en el selector. |
 
 ## Cómo corregir un dato
 

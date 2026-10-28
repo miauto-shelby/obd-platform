@@ -280,7 +280,8 @@ test("stores optional vehicle data when it is provided", async () => {
     transmission: "automatic",
   });
 
-  assert.equal(detailed.nickname, "Mi Onix");
+  assert.equal(detailed.nickname, "MI ONIX");
+  assert.equal(detailed.engine, "1.0 TURBO");
   assert.equal(detailed.vin, "1HGCM82633A004352");
   assert.equal(detailed.fuelType, "GASOLINE");
   assert.equal(detailed.transmission, "AUTOMATIC");
@@ -308,8 +309,8 @@ test("updates the basic profile without accepting manual mileage", async () => {
     fuelType: "gasoline",
     transmission: null,
   });
-  assert.equal(updated.nickname, "Auto familiar");
-  assert.equal(updated.engine, "1.0 Turbo");
+  assert.equal(updated.nickname, "AUTO FAMILIAR");
+  assert.equal(updated.engine, "1.0 TURBO");
   assert.equal(updated.fuelType, "GASOLINE");
   assert.equal(updated.transmission, null);
   assert.equal(updated.currentMileage, null);
@@ -317,6 +318,22 @@ test("updates the basic profile without accepting manual mileage", async () => {
   await assert.rejects(
     () => service.updateProfile("access-token", vehicle.vehicleId, { currentMileage: 50000 }),
     (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && error.status === 400
+  );
+});
+
+test("rejects a brand that is not active in the catalog", async () => {
+  const service = createService();
+  service.brandCatalogService = {
+    assertActiveBrand: async (brand) => {
+      if (brand !== "CHEVROLET") {
+        throw new ApiError("BRAND_NOT_AVAILABLE", "Selecciona una marca disponible en la lista.", 400);
+      }
+    },
+  };
+
+  await assert.rejects(
+    () => service.create("access-token", { ...validRequest(), brand: "Marca temporal" }),
+    (error) => error instanceof ApiError && error.code === "BRAND_NOT_AVAILABLE" && error.status === 400
   );
 });
 
