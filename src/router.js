@@ -6,7 +6,7 @@ const {
   sendNoContent,
 } = require("./utils/http");
 
-function createRouter(authService, vehicleService) {
+function createRouter(authService, vehicleService, vehicleBrandService) {
   return async function router(req, res) {
     const url = new URL(req.url, "http://localhost");
     console.log(`[HTTP] ${req.method} ${url.pathname}`);
@@ -79,6 +79,28 @@ function createRouter(authService, vehicleService) {
       }
 
       sendJson(res, 200, { items: await vehicleService.list(token) });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/v1/vehicle-brands") {
+      const token = getBearerToken(req);
+      if (!token) throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      sendJson(res, 200, await vehicleBrandService.list(token));
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/v1/admin/vehicle-brands") {
+      const token = getBearerToken(req);
+      if (!token) throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      sendJson(res, 201, await vehicleBrandService.createOrActivate(token, await readJsonBody(req)));
+      return;
+    }
+
+    const adminBrand = url.pathname.match(/^\/api\/v1\/admin\/vehicle-brands\/([^/]+)$/);
+    if (req.method === "PATCH" && adminBrand) {
+      const token = getBearerToken(req);
+      if (!token) throw new ApiError("INVALID_ACCESS_TOKEN", "El Access Token no es valido.", 401);
+      sendJson(res, 200, await vehicleBrandService.update(token, adminBrand[1], await readJsonBody(req)));
       return;
     }
 

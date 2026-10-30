@@ -2,6 +2,12 @@
 
 ## Propósito
 
+## Catálogo de marcas
+
+La marca no se escribe libremente en la aplicación: se selecciona desde `GET /api/v1/vehicle-brands`. El backend conserva el catálogo en MongoDB, entrega solo marcas activas y valida la selección al crear o editar un vehículo. Esto evita variaciones como `Mazda`, `mazda` o errores de digitación.
+
+El rol persistente `ADMIN` puede incorporar o reactivar una marca con `POST /api/v1/admin/vehicle-brands` y activar/desactivar una existente con `PATCH /api/v1/admin/vehicle-brands/{brandId}`. Desactivar una marca no modifica los vehículos históricos que ya la usan.
+
 Cada vehículo pertenece al usuario de la sesión autenticada. Este primer alcance permite registrarlo y consultarlo antes de conectar un adaptador OBD2.
 
 ## Rutas implementadas
