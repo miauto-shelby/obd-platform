@@ -6,7 +6,7 @@ Este documento muestra, de forma visual y editable, qué ocurre cuando una aplic
 
 Los diagramas están escritos con **Mermaid**, por lo que GitHub los muestra como diagramas y cualquier integrante puede actualizar el texto directamente en este archivo. No son imágenes fijas.
 
-**Última actualización:** 14 de octubre de 2026.
+**Última actualización:** 4 de noviembre de 2026.
 
 ## Cómo mantenerlo actualizado
 
@@ -38,6 +38,7 @@ La regla es: una ruta nueva no se considera terminada si no tiene contrato, diag
 | Vehículos | `DELETE /api/v1/vehicles/{vehicleId}` | Disponible | [Ver flujo](#12-retirar-un-vehículo-de-la-lista) |
 | Vehículos | `GET /api/v1/vehicles/active` | Disponible | [Ver flujo](#13-consultar-el-vehículo-activo) |
 | Vehículos | `PUT /api/v1/vehicles/active` | Disponible | [Ver flujo](#14-cambiar-el-vehículo-activo) |
+| Asistencia de registro | Sin ruta HTTP nueva | Cámara disponible; OCR pendiente | [Ver flujo](#15-leer-tarjeta-de-propiedad-con-asistencia) |
 
 > Nota para arquitectura: las rutas de autenticación están implementadas en el backend. El contrato estructurado de rutas se mantiene en `../../openapi/openapi.yaml`; las rutas de autenticación que todavía no aparezcan allí se documentarán cuando se modifique su contrato.
 
@@ -267,6 +268,47 @@ flowchart TD
     H --> I[200: vehículo activo actualizado]
     I --> J[Aplicación refresca la pantalla principal]
 ```
+
+## 15. Leer tarjeta de propiedad con asistencia
+
+Este flujo no agrega una ruta HTTP ni envía una imagen al backend. La primera etapa disponible permite tomar, previsualizar y descartar una foto temporal de la tarjeta desde la app. La lectura OCR y el prellenado continúan pendientes; cuando estén disponibles, usarán el formulario y las rutas existentes de vehículos.
+
+```mermaid
+flowchart TD
+    A[Usuario pulsa Leer tarjeta de propiedad] --> B[App solicita permiso CAMERA]
+    B --> C{Permiso concedido?}
+    C -->|No o restringido| D[Explicar permiso y ofrecer Ajustes o continuar manualmente]
+    D --> E[Formulario manual de vehículo]
+    C -->|Sí| F[Abrir cámara nativa]
+    F --> G{Foto tomada?}
+    G -->|No| E
+    G -->|Sí| H[Previsualización temporal solo en el dispositivo]
+    H --> I{OCR local disponible?}
+    I -->|No: etapa actual| J[Permitir retomar o descartar foto y diligenciar manualmente]
+    J --> E
+    I -->|Sí: siguiente etapa| K[OCR local propone placa, VIN, marca, modelo y año]
+    K --> L[Validar marca contra catálogo activo]
+    L --> M[Formulario prellenado y completamente editable]
+    M --> N[Usuario revisa, corrige o borra cada dato]
+    N --> O{Formulario válido?}
+    O -->|No| P[Mostrar error junto al campo]
+    P --> N
+    O -->|Sí| Q[Usuario confirma guardar]
+    Q --> R[POST /api/v1/vehicles con los datos confirmados]
+    R --> S[Backend valida sesión, placa, VIN, catálogo y propiedad]
+    S --> T{Datos aceptados?}
+    T -->|No| U[Mostrar el mensaje de validación del backend]
+    U --> N
+    T -->|Sí| V[(MongoDB: crear vehículo)]
+    V --> W[Descartar imagen temporal y mostrar vehículo creado]
+```
+
+Reglas de privacidad del flujo:
+
+- Solo se solicita el permiso de cámara; no se piden galería, almacenamiento, ubicación, contactos ni fotos.
+- La foto no forma parte del contrato, no se guarda en MongoDB y no se envía por HTTP.
+- La persona siempre confirma manualmente los datos antes de crear el vehículo.
+- Si se niega el permiso, se cancela la foto o falla la futura lectura OCR, el registro manual continúa disponible.
 
 ## Próximo diagrama: lecturas OBD2
 

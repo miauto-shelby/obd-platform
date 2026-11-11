@@ -9,6 +9,7 @@ La documentación de arquitectura, decisiones, contratos, diagramas y pruebas de
 - [Índice de documentación de API](docs/api/README.md)
 - [Contrato OpenAPI](openapi/openapi.yaml)
 - [Colección oficial de Postman](postman/My-Auto-Vehicle-Validation.postman_collection.json)
+- [Diseño de lectura de tarjeta de propiedad](docs/design/lectura-tarjeta-propiedad.md)
 
 La fuente que se debe revisar antes de aprobar cambios es esta rama del backend; el antiguo repositorio documental `OBD2-API` se conserva temporalmente solo hasta completar la revisión de la migración.
 
